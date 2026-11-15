@@ -27,7 +27,11 @@ import {
   UploadCloud,
   Sparkles,
   FileUp,
-  CheckCircle2
+  CheckCircle2,
+  FolderGit2,
+  BookmarkCheck,
+  ExternalLink,
+  Github
 } from 'lucide-react';
 
 export default function RecruiterDashboard() {
@@ -351,340 +355,438 @@ export default function RecruiterDashboard() {
         )}
       </div>
 
-      {/* 3. Selected Job Snapshot Banner */}
-      {activeJob && (
-        <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-semibold">
-                {activeJob.department}
-              </span>
-              <span className="text-xs text-slate-400">Experience Required: {activeJob.experience_required}</span>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold">{activeJob.job_title}</h2>
-            <p className="text-xs text-slate-300 max-w-3xl line-clamp-2 mt-1">
-              {activeJob.job_description || 'No detailed description provided.'}
-            </p>
-            <div className="flex flex-wrap items-center gap-1.5 pt-2">
-              <span className="text-xs text-slate-400 font-semibold mr-1">Required Skills:</span>
-              {activeJob.required_skills?.split(',').map((skill, idx) => (
-                <span key={idx} className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200 text-[11px]">
-                  {skill.trim()}
-                </span>
-              ))}
-            </div>
+      {/* When no jobs exist yet for this recruiter account, display clean empty state */}
+      {!loadingJobs && jobs.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center shadow-sm">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-100">
+            <Briefcase className="w-8 h-8" />
           </div>
-
-          <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 text-center min-w-[140px] flex-shrink-0">
-            <span className="text-xs text-slate-300">Total Ingested</span>
-            <div className="text-2xl font-bold text-white mt-0.5">
-              {candidates.length}
-            </div>
-            <span className="text-[11px] text-emerald-400 font-medium">Ranked & Evaluated</span>
-          </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-1">
+            No Job Descriptions Posted Yet
+          </h3>
+          <p className="text-sm text-slate-500 max-w-lg mx-auto mb-6">
+            Your workspace is clean and ready. Upload a Job Description document (PDF/DOCX) or paste role requirements to automatically extract skills, establish benchmark criteria, and rank candidates.
+          </p>
+          <button
+            onClick={() => setShowPostModal(true)}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-sm font-semibold shadow-md shadow-blue-500/20 transition-all"
+          >
+            <PlusCircle className="w-4 h-4" />
+            Post / Upload First Job Description
+          </button>
         </div>
-      )}
-
-      {/* 4. Main Two-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Column (5 Cols): Candidate Rankings */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-600" />
-                Candidate Rankings ({candidates.length})
-              </h3>
-              <span className="text-xs text-slate-400">Ranked by Match Score</span>
-            </div>
-
-            {loadingCandidates ? (
-              <div className="py-12 text-center text-xs text-slate-500">
-                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                Calculating semantic matches...
-              </div>
-            ) : candidates.length === 0 ? (
-              <div className="py-8 text-center text-slate-500 text-xs">
-                No candidates matched for this job yet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {candidates.map((cand, index) => {
-                  const isSelected = cand.candidate_id === selectedCandidateId;
-                  
-                  let scoreBadgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-200';
-                  if (cand.match_score < 70 && cand.match_score >= 50) {
-                    scoreBadgeColor = 'bg-amber-100 text-amber-800 border-amber-200';
-                  } else if (cand.match_score < 50) {
-                    scoreBadgeColor = 'bg-rose-100 text-rose-800 border-rose-200';
-                  }
-
-                  return (
-                    <div
-                      key={cand.candidate_id}
-                      onClick={() => setSelectedCandidateId(cand.candidate_id)}
-                      className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/10 shadow-sm'
-                          : 'bg-slate-50/60 hover:bg-slate-50 border-slate-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
-                          <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center">
-                            #{index + 1}
-                          </span>
-                          <div>
-                            <h4 className="font-bold text-slate-900 text-sm leading-tight">{cand.name}</h4>
-                            <p className="text-xs text-slate-500">{cand.email}</p>
-                          </div>
-                        </div>
-
-                        {/* Match Score Badge */}
-                        <div className="text-right">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${scoreBadgeColor}`}>
-                            {cand.match_score}% Match
-                          </span>
-                          <div className="text-[10px] text-slate-500 mt-0.5">
-                            Score: {cand.hiring_score}/100
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Candidate Details & Key Skills */}
-                      <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
-                        <span>Exp: <strong>{cand.experience || 'N/A'}</strong></span>
-                        <div className="flex items-center gap-1">
-                          <FileText className="w-3.5 h-3.5 text-blue-600" />
-                          <span className="truncate max-w-[140px] text-[11px] font-medium text-slate-700">
-                            {cand.resume_path || 'Resume.pdf'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Skills Chips */}
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {cand.key_skills?.map((skill, sIdx) => (
-                          <span key={sIdx} className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700">
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Status & Recommendation */}
-                      <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
-                        <span className="text-slate-500">
-                          Rec: <strong className="text-slate-800">{cand.recommendation}</strong>
-                        </span>
-                        <span className="text-blue-600 font-semibold inline-flex items-center gap-0.5">
-                          View Analysis <ChevronRight className="w-3.5 h-3.5" />
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Column (7 Cols): Deep Review: Skill Gaps & Interview Questions */}
-        <div className="lg:col-span-7 space-y-6">
-          
-          {loadingAnalysis ? (
-            <div className="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm text-center text-xs text-slate-500">
-              <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              Loading candidate evaluation dossier & questions...
-            </div>
-          ) : !candidateAnalysis ? (
-            <div className="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm text-center text-slate-500 text-sm">
-              Select a candidate from the left panel to review skill gaps and generated interview questions.
-            </div>
-          ) : (
-            <>
-              {/* A. Candidate Profile Dossier Card */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold text-slate-900">{candidateAnalysis.candidate.name}</h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                        {candidateAnalysis.recommendation}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {candidateAnalysis.candidate.email} • {candidateAnalysis.candidate.phone || 'Phone not provided'}
-                    </p>
-                  </div>
-
-                  {/* Resume Attached Tag */}
-                  <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-                    <FileText className="w-4 h-4 text-blue-600" />
-                    <span className="text-xs font-semibold text-slate-800">
-                      {candidateAnalysis.candidate.resume_path || 'Resume.pdf'}
+      ) : (
+        <>
+          {/* 3. Selected Job Snapshot Banner */}
+          {activeJob && (
+            <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-semibold">
+                    {activeJob.department}
+                  </span>
+                  <span className="text-xs text-slate-400">Experience Required: {activeJob.experience_required}</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold">{activeJob.job_title}</h2>
+                <p className="text-xs text-slate-300 max-w-3xl line-clamp-2 mt-1">
+                  {activeJob.job_description || 'No detailed description provided.'}
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                  <span className="text-xs text-slate-400 font-semibold mr-1">Required Skills:</span>
+                  {activeJob.required_skills?.split(',').map((skill, idx) => (
+                    <span key={idx} className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200 text-[11px]">
+                      {skill.trim()}
                     </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-center">
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <span className="text-[11px] text-slate-500">Compatibility</span>
-                    <div className="text-lg font-bold text-blue-600 mt-0.5">{candidateAnalysis.match_score}%</div>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <span className="text-[11px] text-slate-500">Hiring Score</span>
-                    <div className="text-lg font-bold text-emerald-600 mt-0.5">{candidateAnalysis.hiring_score}/100</div>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <span className="text-[11px] text-slate-500">Experience</span>
-                    <div className="text-lg font-bold text-slate-800 mt-0.5">{candidateAnalysis.candidate.experience || 'N/A'}</div>
-                  </div>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                    <span className="text-[11px] text-slate-500">Application</span>
-                    <div className="text-lg font-bold text-purple-600 mt-0.5">{candidateAnalysis.status}</div>
-                  </div>
-                </div>
-
-                {candidateAnalysis.candidate.education && (
-                  <div className="mt-4 flex items-center gap-2 text-xs text-slate-600 bg-slate-50/70 p-2.5 rounded-lg border border-slate-200/60">
-                    <GraduationCap className="w-4 h-4 text-indigo-600 flex-shrink-0" />
-                    <span>Education: <strong>{candidateAnalysis.candidate.education}</strong></span>
-                  </div>
-                )}
-              </div>
-
-              {/* B. Skill Gap Analysis Card */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                    <Award className="w-4 h-4 text-emerald-600" />
-                    Skill Gap Analysis
-                  </h3>
-                  <span className="text-xs text-slate-400">Target Role: {candidateAnalysis.job_title}</span>
-                </div>
-
-                {/* Matched vs Missing Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200/70">
-                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 mb-2">
-                      <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      Matched Required Skills ({candidateAnalysis.matched_skills.length})
-                    </span>
-                    {candidateAnalysis.matched_skills.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic">No direct required skill matches.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {candidateAnalysis.matched_skills.map((skill, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-md text-xs font-semibold shadow-xs">
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-4 rounded-xl bg-rose-50/50 border border-rose-200/70">
-                    <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5 mb-2">
-                      <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                      Missing Competencies ({candidateAnalysis.missing_skills.length})
-                    </span>
-                    {candidateAnalysis.missing_skills.length === 0 ? (
-                      <p className="text-xs text-emerald-700 font-semibold">100% Skill Coverage! No gaps identified.</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {candidateAnalysis.missing_skills.map((skill, idx) => (
-                          <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-rose-300 text-rose-800 rounded-md text-xs font-semibold shadow-xs">
-                            <X className="w-3 h-3 text-rose-500" />
-                            {skill}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* AI Upskilling Recommendations */}
-                <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-100 space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
-                    <BookOpen className="w-4 h-4 text-blue-600" />
-                    AI Upskilling Recommendations:
-                  </div>
-                  <p className="text-xs text-slate-700 leading-relaxed">
-                    {candidateAnalysis.recommendation_notes}
-                  </p>
-                  {candidateAnalysis.recommended_courses?.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {candidateAnalysis.recommended_courses.map((course, cIdx) => (
-                        <span key={cIdx} className="px-2.5 py-1 rounded-md bg-white border border-blue-200 text-blue-800 text-[11px] font-medium">
-                          📚 {course}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* C. Role-Specific Interview Questions Card */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                      <HelpCircle className="w-4 h-4 text-indigo-600" />
-                      Role-Specific Interview Questions
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Tailored to {candidateAnalysis.job_title} and candidate's competency gaps
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={handleRegenerateQuestions}
-                    disabled={regeneratingQuestions}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${regeneratingQuestions ? 'animate-spin' : ''}`} />
-                    Regenerate
-                  </button>
-                </div>
-
-                {/* Questions List */}
-                <div className="space-y-3">
-                  {candidateAnalysis.questions?.map((q, qIdx) => (
-                    <div key={qIdx} className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2">
-                      <div className="flex items-start gap-3">
-                        <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
-                          {qIdx + 1}
-                        </span>
-                        <div className="flex-1">
-                          <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-snug">
-                            {q.question_text}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[11px] font-semibold border border-indigo-200">
-                              {q.category}
-                            </span>
-                            <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[11px] font-medium">
-                              Difficulty: {q.difficulty_level}
-                            </span>
-                            <span className="text-[11px] text-slate-500 flex items-center gap-1 ml-auto">
-                              <Clock className="w-3 h-3" />
-                              {q.response_time}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   ))}
                 </div>
               </div>
-            </>
+
+              <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 text-center min-w-[140px] flex-shrink-0">
+                <span className="text-xs text-slate-300">Total Ingested</span>
+                <div className="text-2xl font-bold text-white mt-0.5">
+                  {candidates.length}
+                </div>
+                <span className="text-[11px] text-emerald-400 font-medium">Ranked & Evaluated</span>
+              </div>
+            </div>
           )}
 
-        </div>
+          {/* 4. Main Two-Column Layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* Left Column (5 Cols): Candidate Rankings */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-600" />
+                    Candidate Rankings ({candidates.length})
+                  </h3>
+                  <span className="text-xs text-slate-400">Ranked by Match Score</span>
+                </div>
 
-      </div>
+                {loadingCandidates ? (
+                  <div className="py-12 text-center text-xs text-slate-500">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                    Calculating semantic matches...
+                  </div>
+                ) : candidates.length === 0 ? (
+                  <div className="py-8 text-center text-slate-500 text-xs px-4 space-y-2">
+                    <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
+                    <p className="font-semibold text-slate-700">No candidates evaluated yet for this role</p>
+                    <p className="text-[11px] text-slate-500">
+                      Click <strong>Upload Candidate Resume</strong> above to ingest a candidate resume (PDF/DOCX) and run automated matching.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {candidates.map((cand, index) => {
+                      const isSelected = cand.candidate_id === selectedCandidateId;
+                      
+                      let scoreBadgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+                      if (cand.match_score < 70 && cand.match_score >= 50) {
+                        scoreBadgeColor = 'bg-amber-100 text-amber-800 border-amber-200';
+                      } else if (cand.match_score < 50) {
+                        scoreBadgeColor = 'bg-rose-100 text-rose-800 border-rose-200';
+                      }
+
+                      return (
+                        <div
+                          key={cand.candidate_id}
+                          onClick={() => setSelectedCandidateId(cand.candidate_id)}
+                          className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/10 shadow-sm'
+                              : 'bg-slate-50/60 hover:bg-slate-50 border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center">
+                                #{index + 1}
+                              </span>
+                              <div>
+                                <h4 className="font-bold text-slate-900 text-sm leading-tight">{cand.name}</h4>
+                                <p className="text-xs text-slate-500">{cand.email}</p>
+                              </div>
+                            </div>
+
+                            {/* Match Score Badge */}
+                            <div className="text-right">
+                              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${scoreBadgeColor}`}>
+                                {cand.match_score}% Match
+                              </span>
+                              <div className="text-[10px] text-slate-500 mt-0.5">
+                                Score: {cand.hiring_score}/100
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Candidate Details & Key Skills */}
+                          <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
+                            <span>Exp: <strong>{cand.experience || 'N/A'}</strong></span>
+                            <div className="flex items-center gap-1">
+                              <FileText className="w-3.5 h-3.5 text-blue-600" />
+                              <span className="truncate max-w-[140px] text-[11px] font-medium text-slate-700">
+                                {cand.resume_path || 'Resume.pdf'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Skills Chips */}
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {cand.key_skills?.map((skill, sIdx) => (
+                              <span key={sIdx} className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700">
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Status & Recommendation */}
+                          <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">
+                              Rec: <strong className="text-slate-800">{cand.recommendation}</strong>
+                            </span>
+                            <span className="text-blue-600 font-semibold inline-flex items-center gap-0.5">
+                              View Analysis <ChevronRight className="w-3.5 h-3.5" />
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column (7 Cols): Deep Review: Skill Gaps & Interview Questions */}
+            <div className="lg:col-span-7 space-y-6">
+              
+              {loadingAnalysis ? (
+                <div className="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm text-center text-xs text-slate-500">
+                  <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  Loading candidate evaluation dossier & questions...
+                </div>
+              ) : !candidateAnalysis ? (
+                <div className="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm text-center text-slate-500 text-sm">
+                  Select a candidate from the left panel to review skill gaps and generated interview questions.
+                </div>
+              ) : (
+                <>
+                  {/* A. Candidate Profile Dossier Card */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xl font-bold text-slate-900">{candidateAnalysis.candidate.name}</h3>
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                            {candidateAnalysis.recommendation}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {candidateAnalysis.candidate.email} • {candidateAnalysis.candidate.phone || 'Phone not provided'}
+                        </p>
+                      </div>
+
+                      {/* Resume Attached Tag */}
+                      <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                        <FileText className="w-4 h-4 text-blue-600" />
+                        <span className="text-xs font-semibold text-slate-800">
+                          {candidateAnalysis.candidate.resume_path || 'Resume.pdf'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-center">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-[11px] text-slate-500">Compatibility</span>
+                        <div className="text-lg font-bold text-blue-600 mt-0.5">{candidateAnalysis.match_score}%</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-[11px] text-slate-500">Hiring Score</span>
+                        <div className="text-lg font-bold text-emerald-600 mt-0.5">{candidateAnalysis.hiring_score}/100</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-[11px] text-slate-500">Experience</span>
+                        <div className="text-lg font-bold text-slate-800 mt-0.5">{candidateAnalysis.candidate.experience || 'N/A'}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <span className="text-[11px] text-slate-500">Application</span>
+                        <div className="text-lg font-bold text-purple-600 mt-0.5">{candidateAnalysis.status}</div>
+                      </div>
+                    </div>
+
+                    {candidateAnalysis.candidate.education && (
+                      <div className="mt-4 flex items-center gap-2 text-xs text-slate-600 bg-slate-50/70 p-2.5 rounded-lg border border-slate-200/60">
+                        <GraduationCap className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                        <span>Education: <strong>{candidateAnalysis.candidate.education}</strong></span>
+                      </div>
+                    )}
+
+                    {candidateAnalysis.candidate.certifications && (
+                      <div className="mt-3 flex items-start gap-2 text-xs text-amber-900 bg-amber-50/70 p-2.5 rounded-lg border border-amber-200/60">
+                        <BookmarkCheck className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="block text-[11px] text-amber-950 uppercase tracking-wider mb-1">Accredited Certifications:</strong>
+                          <div className="flex flex-wrap gap-1.5">
+                            {candidateAnalysis.candidate.certifications.split(';').map((c, cIdx) => (
+                              <span key={cIdx} className="px-2 py-0.5 rounded bg-white border border-amber-300 text-amber-900 text-[11px] font-medium">
+                                {c.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {candidateAnalysis.candidate.projects && (() => {
+                      let projs = [];
+                      try {
+                        const parsed = JSON.parse(candidateAnalysis.candidate.projects);
+                        projs = Array.isArray(parsed) ? parsed : [parsed];
+                      } catch {
+                        projs = candidateAnalysis.candidate.projects.split(';').map(p => ({ title: p.trim(), link: null, highlights: [] }));
+                      }
+
+                      return (
+                        <div className="mt-3 text-xs text-indigo-900 bg-indigo-50/60 p-3 rounded-xl border border-indigo-200/60 space-y-2">
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-950 uppercase tracking-wider">
+                            <FolderGit2 className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Key Portfolio Projects ({projs.length}):</span>
+                          </div>
+                          <div className="space-y-2">
+                            {projs.map((p, pIdx) => {
+                              const isObj = typeof p === 'object' && p !== null;
+                              const title = isObj ? p.title : p;
+                              const link = isObj ? p.link : null;
+                              const highlights = isObj ? (p.highlights || (p.description ? [p.description] : [])) : [];
+
+                              return (
+                                <div key={pIdx} className="bg-white/80 p-2.5 rounded-lg border border-indigo-100 text-[11px] space-y-1">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="font-bold text-slate-900">{title}</span>
+                                    {link && (
+                                      <a
+                                        href={link.startsWith('http') ? link : `https://${link}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[10px] text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded border border-indigo-200 font-semibold transition-colors flex-shrink-0"
+                                      >
+                                        <Github className="w-3 h-3" />
+                                        <span>Demo / Repo</span>
+                                        <ExternalLink className="w-2.5 h-2.5" />
+                                      </a>
+                                    )}
+                                  </div>
+                                  {highlights.length > 0 && (
+                                    <ul className="pl-4 space-y-0.5 text-slate-600 list-disc">
+                                      {highlights.slice(0, 3).map((h, hIdx) => (
+                                        <li key={hIdx} className="leading-relaxed">{h}</li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* B. Skill Gap Analysis Card */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                        <Award className="w-4 h-4 text-emerald-600" />
+                        Skill Gap Analysis
+                      </h3>
+                      <span className="text-xs text-slate-400">Target Role: {candidateAnalysis.job_title}</span>
+                    </div>
+
+                    {/* Matched vs Missing Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200/70">
+                        <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 mb-2">
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          Matched Required Skills ({candidateAnalysis.matched_skills.length})
+                        </span>
+                        {candidateAnalysis.matched_skills.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic">No direct required skill matches.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {candidateAnalysis.matched_skills.map((skill, idx) => (
+                              <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-emerald-300 text-emerald-800 rounded-md text-xs font-semibold shadow-xs">
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-rose-50/50 border border-rose-200/70">
+                        <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5 mb-2">
+                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                          Missing Competencies ({candidateAnalysis.missing_skills.length})
+                        </span>
+                        {candidateAnalysis.missing_skills.length === 0 ? (
+                          <p className="text-xs text-emerald-700 font-semibold">100% Skill Coverage! No gaps identified.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {candidateAnalysis.missing_skills.map((skill, idx) => (
+                              <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-rose-300 text-rose-800 rounded-md text-xs font-semibold shadow-xs">
+                                <X className="w-3 h-3 text-rose-500" />
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* AI Upskilling Recommendations */}
+                    <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-100 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                        <BookOpen className="w-4 h-4 text-blue-600" />
+                        AI Upskilling Recommendations:
+                      </div>
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        {candidateAnalysis.recommendation_notes}
+                      </p>
+                      {candidateAnalysis.recommended_courses?.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {candidateAnalysis.recommended_courses.map((course, cIdx) => (
+                            <span key={cIdx} className="px-2.5 py-1 rounded-md bg-white border border-blue-200 text-blue-800 text-[11px] font-medium">
+                              📚 {course}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* C. Role-Specific Interview Questions Card */}
+                  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div>
+                        <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                          <HelpCircle className="w-4 h-4 text-indigo-600" />
+                          Role-Specific Interview Questions
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Tailored to {candidateAnalysis.job_title} and candidate's competency gaps
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={handleRegenerateQuestions}
+                        disabled={regeneratingQuestions}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${regeneratingQuestions ? 'animate-spin' : ''}`} />
+                        Regenerate
+                      </button>
+                    </div>
+
+                    {/* Questions List */}
+                    <div className="space-y-3">
+                      {candidateAnalysis.questions?.map((q, qIdx) => (
+                        <div key={qIdx} className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2">
+                          <div className="flex items-start gap-3">
+                            <span className="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                              {qIdx + 1}
+                            </span>
+                            <div className="flex-1">
+                              <p className="text-xs sm:text-sm font-semibold text-slate-900 leading-snug">
+                                {q.question_text}
+                              </p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[11px] font-semibold border border-indigo-200">
+                                  {q.category}
+                                </span>
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[11px] font-medium">
+                                  Difficulty: {q.difficulty_level}
+                                </span>
+                                <span className="text-[11px] text-slate-500 flex items-center gap-1 ml-auto">
+                                  <Clock className="w-3 h-3" />
+                                  {q.response_time}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+            </div>
+
+          </div>
+        </>
+      )}
 
       {/* 5. Modal for Uploading / Posting Job Description */}
       {showPostModal && (

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 import os
+import json
 
 from app.db.session import get_db
 from app.models.candidate import Candidate
@@ -22,7 +23,20 @@ def get_candidate_profile(
     if not cand:
         cand = db.query(Candidate).filter(Candidate.email == current_user.email).first()
     if not cand:
-        raise HTTPException(status_code=404, detail="Candidate profile not found.")
+        cand = Candidate(
+            user_id=current_user.id,
+            name=current_user.full_name,
+            email=current_user.email,
+            phone=current_user.phone or "",
+            education=current_user.company_or_institution or "",
+            experience="",
+            skills="",
+            resume_path="",
+            is_demo=False
+        )
+        db.add(cand)
+        db.commit()
+        db.refresh(cand)
     return CandidateSimpleOut.model_validate(cand)
 
 @router.post("/upload_resume", response_model=ResumeUploadResponse)
@@ -67,25 +81,36 @@ async def upload_candidate_resume(
     if not cand:
         cand = db.query(Candidate).filter(Candidate.email == current_user.email).first()
 
+    proj_str = json.dumps(profile["projects"]) if profile.get("projects") else ""
+    cert_str = "; ".join(profile["certifications"]) if profile.get("certifications") else ""
+
     if not cand:
         cand = Candidate(
             user_id=current_user.id,
-            name=current_user.full_name or profile["name"],
+            name=profile["name"] if profile["name"] and profile["name"] != "N/A" else current_user.full_name,
             email=current_user.email,
-            phone=profile["phone"] if profile["phone"] != "N/A" else current_user.phone,
-            education=profile["education"],
-            experience=profile["experience"],
+            phone=profile["phone"] if profile["phone"] != "N/A" else (current_user.phone or ""),
+            education=profile["education"] or current_user.company_or_institution or "",
+            experience=profile["experience"] or "",
             skills=", ".join(profile["skills"]),
-            resume_path=filename
+            projects=proj_str,
+            certifications=cert_str,
+            resume_path=filename,
+            is_demo=False
         )
         db.add(cand)
     else:
         cand.user_id = current_user.id
+        if profile["name"] and profile["name"] != "N/A":
+            cand.name = profile["name"]
         cand.phone = profile["phone"] if profile["phone"] != "N/A" else cand.phone
         cand.education = profile["education"] or cand.education
         cand.experience = profile["experience"] or cand.experience
         cand.skills = ", ".join(profile["skills"])
+        cand.projects = proj_str or cand.projects
+        cand.certifications = cert_str or cand.certifications
         cand.resume_path = filename
+        cand.is_demo = False
 
     db.commit()
     db.refresh(cand)
@@ -100,7 +125,8 @@ async def upload_candidate_resume(
         education=cand.education or "N/A",
         experience=cand.experience or "N/A",
         skills=profile["skills"],
-        certifications=profile["certifications"],
+        projects=profile.get("projects", []),
+        certifications=profile.get("certifications", []),
         extraction_accuracy=profile["extraction_accuracy"],
         message=f"Resume uploaded and processed successfully with {profile['extraction_accuracy']}% confidence!"
     )

@@ -7,6 +7,7 @@ from app.db.init_db import init_db
 from app.api.routes.auth import router as auth_router
 from app.api.routes.recruiter import router as recruiter_router
 from app.api.routes.candidate import router as candidate_router
+from app.api.routes.hr import router as hr_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -39,6 +40,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(recruiter_router, prefix=settings.API_V1_STR)
 app.include_router(candidate_router, prefix=settings.API_V1_STR)
+app.include_router(hr_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def root():

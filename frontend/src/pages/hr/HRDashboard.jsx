@@ -1,9 +1,38 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { getHRAnalyticsApi } from '../../api/hr';
 import { Users, Building2, CheckCircle2, TrendingUp, Briefcase, FileSpreadsheet } from 'lucide-react';
 
 export default function HRDashboard() {
   const { user } = useAuth();
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
+
+  async function loadAnalytics() {
+    setLoading(true);
+    try {
+      const data = await getHRAnalyticsApi();
+      setAnalytics(data);
+    } catch (err) {
+      console.warn('Could not load HR analytics:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Fallback if loading or error
+  const totalReqs = analytics?.total_requisitions ?? 0;
+  const reqsSub = analytics?.requisitions_sub ?? 'Requisitions pipeline';
+  const activeRecruiters = analytics?.active_recruiters ?? 0;
+  const recruitersSub = analytics?.recruiters_sub ?? 'Recruiting team';
+  const accuracy = analytics?.screening_accuracy ?? 'Ready';
+  const accuracySub = analytics?.accuracy_sub ?? 'Resume parsing active';
+  const atsStatus = analytics?.ats_status ?? 'Online';
+  const atsSub = analytics?.ats_sub ?? 'Connected to system';
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -19,7 +48,7 @@ export default function HRDashboard() {
               Welcome back, {user?.full_name}
             </h1>
             <p className="text-slate-300 text-sm mt-1">
-              Organization: {user?.company_or_institution || 'Corporate Human Resources'} • Strategic Hiring & Talent Analytics
+              Organization: {analytics?.organization || user?.company_or_institution || 'Corporate Human Resources'} • Strategic Hiring & Talent Analytics
             </p>
           </div>
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 text-center min-w-[160px]">
@@ -41,8 +70,8 @@ export default function HRDashboard() {
               <Briefcase className="w-4 h-4" />
             </span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">42</div>
-          <span className="text-xs text-emerald-600 font-medium mt-1 inline-block">↑ 8 new this quarter</span>
+          <div className="text-2xl font-bold text-slate-900 mt-2">{loading ? '...' : totalReqs}</div>
+          <span className="text-xs text-emerald-600 font-medium mt-1 inline-block">{reqsSub}</span>
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
@@ -52,8 +81,8 @@ export default function HRDashboard() {
               <Users className="w-4 h-4" />
             </span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">12</div>
-          <span className="text-xs text-slate-500 font-medium mt-1 inline-block">Across 4 departments</span>
+          <div className="text-2xl font-bold text-slate-900 mt-2">{loading ? '...' : activeRecruiters}</div>
+          <span className="text-xs text-slate-500 font-medium mt-1 inline-block">{recruitersSub}</span>
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
@@ -63,8 +92,8 @@ export default function HRDashboard() {
               <TrendingUp className="w-4 h-4" />
             </span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">97%</div>
-          <span className="text-xs text-emerald-600 font-medium mt-1 inline-block">Exceeds 95% target</span>
+          <div className="text-2xl font-bold text-slate-900 mt-2">{loading ? '...' : accuracy}</div>
+          <span className="text-xs text-emerald-600 font-medium mt-1 inline-block">{accuracySub}</span>
         </div>
 
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
@@ -74,8 +103,8 @@ export default function HRDashboard() {
               <CheckCircle2 className="w-4 h-4" />
             </span>
           </div>
-          <div className="text-2xl font-bold text-slate-900 mt-2">Online</div>
-          <span className="text-xs text-slate-500 font-medium mt-1 inline-block">Connected to candidate pool</span>
+          <div className="text-2xl font-bold text-slate-900 mt-2">{loading ? '...' : atsStatus}</div>
+          <span className="text-xs text-slate-500 font-medium mt-1 inline-block">{atsSub}</span>
         </div>
       </div>
 

@@ -30,6 +30,8 @@ class CandidateSimpleOut(BaseModel):
     education: Optional[str] = None
     experience: Optional[str] = None
     skills: Optional[str] = None
+    projects: Optional[str] = None
+    certifications: Optional[str] = None
     resume_path: Optional[str] = None
 
     class Config:
@@ -82,7 +84,8 @@ class ResumeUploadResponse(BaseModel):
     education: str
     experience: str
     skills: List[str]
-    certifications: List[str]
+    projects: List[Any] = []
+    certifications: List[str] = []
     extraction_accuracy: float
     message: str
 

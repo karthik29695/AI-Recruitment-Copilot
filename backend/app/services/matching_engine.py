@@ -1,6 +1,7 @@
 import json
 import re
 from typing import Dict, List, Any
+from app.services.skill_ontology import normalize_skill, are_skills_matching
 
 def parse_skills(skills_data: Any) -> List[str]:
     """Normalize and extract a clean list of skills from comma-separated or JSON text."""
@@ -34,30 +35,50 @@ def extract_years_experience(exp_text: str) -> float:
 
 def evaluate_candidate_match(candidate_skills_raw: str, job_skills_raw: str, candidate_exp_raw: str, job_exp_raw: str) -> Dict[str, Any]:
     """
-    Computes candidate-job compatibility:
+    Computes candidate-job compatibility using semantic skill ontology resolution:
+    - Resolves acronyms (e.g. DSA <-> Data Structures & Algorithms, K8s <-> Kubernetes)
     - Match score (%)
     - Hiring score (out of 100)
     - Matched vs Missing skills
     - Upskilling learning path recommendations
     """
-    candidate_skills = parse_skills(candidate_skills_raw)
-    job_skills = parse_skills(job_skills_raw)
+    raw_cand_skills = parse_skills(candidate_skills_raw)
+    raw_job_skills = parse_skills(job_skills_raw)
 
-    # Normalized lookup maps
-    cand_map = {s.lower(): s for s in candidate_skills}
-    job_map = {s.lower(): s for s in job_skills}
+    # Normalize to canonical taxonomy
+    cand_canonical_map: Dict[str, str] = {}
+    for s in raw_cand_skills:
+        canonical = normalize_skill(s)
+        if canonical:
+            cand_canonical_map[canonical.lower()] = canonical
 
-    matched_keys = set(cand_map.keys()) & set(job_map.keys())
-    missing_keys = set(job_map.keys()) - set(cand_map.keys())
-    extra_keys = set(cand_map.keys()) - set(job_map.keys())
+    job_canonical_map: Dict[str, str] = {}
+    for s in raw_job_skills:
+        canonical = normalize_skill(s)
+        if canonical:
+            job_canonical_map[canonical.lower()] = canonical
 
-    matched_skills = [job_map[k] for k in matched_keys]
-    missing_skills = [job_map[k] for k in missing_keys]
-    extra_skills = [cand_map[k] for k in extra_keys]
+    matched_canonical = set()
+    for j_key, j_val in job_canonical_map.items():
+        if j_key in cand_canonical_map:
+            matched_canonical.add(j_key)
+            continue
+        # Check semantic equivalence
+        for c_key, c_val in cand_canonical_map.items():
+            if are_skills_matching(j_val, c_val):
+                matched_canonical.add(j_key)
+                break
+
+    missing_canonical = set(job_canonical_map.keys()) - matched_canonical
+    extra_canonical = set(cand_canonical_map.keys()) - matched_canonical
+
+    matched_skills = [job_canonical_map[k] for k in matched_canonical]
+    missing_skills = [job_canonical_map[k] for k in missing_canonical]
+    extra_skills = [cand_canonical_map[k] for k in extra_canonical]
 
     # Skill match ratio
-    if job_skills:
-        skill_ratio = len(matched_skills) / len(job_skills)
+    if job_canonical_map:
+        skill_ratio = len(matched_skills) / len(job_canonical_map)
     else:
         skill_ratio = 1.0
 
@@ -71,7 +92,6 @@ def evaluate_candidate_match(candidate_skills_raw: str, job_skills_raw: str, can
         exp_ratio = 1.0
 
     # Composite scores
-    # Match percentage represents qualification coverage:
     raw_match_score = (skill_ratio * 0.75 + min(exp_ratio, 1.0) * 0.25) * 100
     match_score = round(max(min(raw_match_score, 99.0), 30.0), 1)
 

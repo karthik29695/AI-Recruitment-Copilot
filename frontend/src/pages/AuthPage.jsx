@@ -58,8 +58,8 @@ export default function AuthPage() {
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
   
   // Form State
-  const [email, setEmail] = useState('recruiter@infosys.com');
-  const [password, setPassword] = useState('Password123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [organization, setOrganization] = useState('');
   const [phone, setPhone] = useState('');
@@ -72,15 +72,10 @@ export default function AuthPage() {
 
   const handleRoleSelect = (roleId) => {
     setSelectedRole(roleId);
+    setEmail('');
+    setPassword('');
     setError(null);
     setSuccessMsg(null);
-    
-    // Auto-fill matching demo credentials when switching role in login mode for convenience
-    const roleObj = ROLES.find(r => r.id === roleId);
-    if (roleObj) {
-      setEmail(roleObj.demoEmail);
-      setPassword('Password123!');
-    }
   };
 
   const handleDemoFill = (roleObj) => {
@@ -194,7 +189,7 @@ export default function AuthPage() {
             <div className="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700">
               <button
                 type="button"
-                onClick={() => { setMode('login'); setError(null); }}
+                onClick={() => { setMode('login'); setEmail(''); setPassword(''); setError(null); }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
                   mode === 'login' ? 'bg-blue-600 text-white shadow' : 'text-slate-300 hover:text-white'
                 }`}
@@ -203,7 +198,7 @@ export default function AuthPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setMode('signup'); setError(null); }}
+                onClick={() => { setMode('signup'); setEmail(''); setPassword(''); setError(null); }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
                   mode === 'signup' ? 'bg-blue-600 text-white shadow' : 'text-slate-300 hover:text-white'
                 }`}
@@ -230,7 +225,7 @@ export default function AuthPage() {
             )}
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
               
               {/* Full Name (Sign Up only) */}
               {mode === 'signup' && (
@@ -245,6 +240,7 @@ export default function AuthPage() {
                     <input
                       type="text"
                       required
+                      autoComplete="name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                       placeholder={selectedRole === 'candidate' ? 'Sarah Johnson' : 'Arun Kumar'}
@@ -266,6 +262,7 @@ export default function AuthPage() {
                   <input
                     type="email"
                     required
+                    autoComplete="off"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="user@domain.com"
@@ -287,6 +284,7 @@ export default function AuthPage() {
                     type="password"
                     required
                     minLength={6}
+                    autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getCandidateProfileApi, uploadCandidateResumeApi } from '../../api/candidate';
-import { User, FileText, CheckCircle2, Award, BookOpen, Clock, UploadCloud, AlertCircle, Sparkles } from 'lucide-react';
+import { User, FileText, CheckCircle2, Award, BookOpen, Clock, UploadCloud, AlertCircle, Sparkles, FolderGit2, BookmarkCheck, ExternalLink, Github } from 'lucide-react';
 
 export default function CandidateDashboard() {
   const { user } = useAuth();
@@ -53,7 +53,31 @@ export default function CandidateDashboard() {
 
   const skillsList = profile?.skills
     ? profile.skills.split(',').map(s => s.trim()).filter(Boolean)
-    : ['Python', 'Data Structures', 'Machine Learning', 'FastAPI', 'React', 'SQL', 'Git'];
+    : [];
+
+  let projectsList = [];
+  if (profile?.projects) {
+    if (Array.isArray(profile.projects)) {
+      projectsList = profile.projects;
+    } else if (typeof profile.projects === 'string') {
+      try {
+        const parsed = JSON.parse(profile.projects);
+        if (Array.isArray(parsed)) {
+          projectsList = parsed;
+        } else if (parsed && typeof parsed === 'object') {
+          projectsList = [parsed];
+        } else {
+          projectsList = profile.projects.split(';').map(p => p.trim()).filter(Boolean);
+        }
+      } catch (e) {
+        projectsList = profile.projects.split(';').map(p => p.trim()).filter(Boolean);
+      }
+    }
+  }
+
+  const certificationsList = profile?.certifications
+    ? profile.certifications.split(';').map(c => c.trim()).filter(Boolean)
+    : [];
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -69,7 +93,7 @@ export default function CandidateDashboard() {
               Hello, {profile?.name || user?.full_name}
             </h1>
             <p className="text-emerald-100 text-sm mt-1">
-              {profile?.education || user?.company_or_institution || 'B.Tech Computer Science Graduate'} • Profile & Resume Assessment Center
+              {profile?.education || user?.company_or_institution || 'Candidate Profile'} • Profile & Resume Assessment Center
             </p>
           </div>
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 text-center min-w-[160px]">
@@ -131,11 +155,11 @@ export default function CandidateDashboard() {
               <div><strong>Name:</strong> {profile?.name || user?.full_name}</div>
               <div><strong>Email:</strong> {profile?.email || user?.email}</div>
               <div><strong>Phone:</strong> {profile?.phone || user?.phone || 'Not provided'}</div>
-              <div><strong>Experience:</strong> {profile?.experience || '5 years'}</div>
-              <div><strong>Education:</strong> {profile?.education || 'Higher Education'}</div>
+              <div><strong>Experience:</strong> {profile?.experience || 'Not specified (upload resume to extract)'}</div>
+              <div><strong>Education:</strong> {profile?.education || user?.company_or_institution || 'Not specified'}</div>
               <div className="pt-1 text-[11px] text-slate-500 flex items-center gap-1">
                 <FileText className="w-3.5 h-3.5 text-blue-600" />
-                <span>File: {profile?.resume_path || 'Resume.pdf'}</span>
+                <span>File: {profile?.resume_path || 'No resume uploaded yet'}</span>
               </div>
             </div>
           </div>
@@ -159,17 +183,33 @@ export default function CandidateDashboard() {
             <p className="text-xs text-slate-500 mb-4">
               Verified competencies detected directly in candidate resume.
             </p>
-            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
-              {skillsList.map((skill) => (
-                <span key={skill} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-xs font-medium">
-                  {skill}
-                </span>
-              ))}
+            {skillsList.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4">
+                <AlertCircle className="w-6 h-6 text-slate-400 mx-auto mb-2" />
+                <p className="font-semibold text-slate-700">No skills extracted yet</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Upload your resume (PDF / DOCX) to automatically detect and verify your skills.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+                {skillsList.map((skill) => (
+                  <span key={skill} className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-xs font-medium">
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          {skillsList.length > 0 ? (
+            <div className="mt-5 p-3 rounded-xl bg-blue-50/60 border border-blue-100 text-xs text-blue-800">
+              <strong>Extraction Accuracy:</strong> &ge; 95% verified across technical keywords & education.
             </div>
-          </div>
-          <div className="mt-5 p-3 rounded-xl bg-blue-50/60 border border-blue-100 text-xs text-blue-800">
-            <strong>Extraction Accuracy:</strong> &ge; 95% verified across technical keywords & education.
-          </div>
+          ) : (
+            <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+              <strong>Skill Extraction:</strong> Automated NLP entity recognizer is ready to analyze your resume.
+            </div>
+          )}
         </div>
 
         {/* Card 3: Upcoming AI Interview Simulation */}
@@ -194,6 +234,111 @@ export default function CandidateDashboard() {
             <Clock className="w-3.5 h-3.5" />
             Interview Simulation Ready
           </button>
+        </div>
+
+      </div>
+
+      {/* Grid Row 2: Extracted Projects & Extracted Certifications */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* Card 4: Extracted Projects */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <FolderGit2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Extracted Projects ({projectsList.length})</h3>
+                <p className="text-[11px] text-slate-500">Key technical initiatives and system implementations</p>
+              </div>
+            </div>
+          </div>
+
+          {projectsList.length === 0 ? (
+            <div className="py-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4">
+              <AlertCircle className="w-5 h-5 text-slate-400 mx-auto mb-1.5" />
+              <p className="font-semibold text-slate-700">No projects extracted yet</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Upload your resume to automatically detect and index project highlights.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {projectsList.map((proj, idx) => {
+                const isObj = typeof proj === 'object' && proj !== null;
+                const title = isObj ? proj.title : proj;
+                const link = isObj ? proj.link : null;
+                const highlights = isObj ? (proj.highlights || (proj.description ? [proj.description] : [])) : [];
+                const description = isObj ? proj.description : '';
+
+                return (
+                  <div key={idx} className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 text-xs text-slate-800 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 font-bold text-[11px] flex items-center justify-center flex-shrink-0">
+                          {idx + 1}
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-sm leading-snug">{title}</h4>
+                      </div>
+                      {link && (
+                        <a
+                          href={link.startsWith('http') ? link : `https://${link}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 text-[11px] font-semibold transition-colors flex-shrink-0 shadow-xs"
+                        >
+                          <Github className="w-3.5 h-3.5" />
+                          <span>Code / Demo</span>
+                          <ExternalLink className="w-3 h-3 text-indigo-500" />
+                        </a>
+                      )}
+                    </div>
+
+                    {highlights.length > 0 ? (
+                      <ul className="pl-7 space-y-1 text-slate-600 list-disc marker:text-indigo-400">
+                        {highlights.map((h, hIdx) => (
+                          <li key={hIdx} className="leading-relaxed">{h}</li>
+                        ))}
+                      </ul>
+                    ) : description ? (
+                      <p className="pl-7 text-slate-600 leading-relaxed">{description}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Card 5: Extracted Certifications */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                <BookmarkCheck className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Certifications & Licenses ({certificationsList.length})</h3>
+                <p className="text-[11px] text-slate-500">Accredited vendor and industry certifications</p>
+              </div>
+            </div>
+          </div>
+
+          {certificationsList.length === 0 ? (
+            <div className="py-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4">
+              <AlertCircle className="w-5 h-5 text-slate-400 mx-auto mb-1.5" />
+              <p className="font-semibold text-slate-700">No certifications extracted yet</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">Upload your resume to automatically extract certifications (AWS, Azure, CKA, etc.).</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {certificationsList.map((cert, idx) => (
+                <div key={idx} className="p-3 bg-amber-50/50 rounded-xl border border-amber-200/70 text-xs text-amber-900 flex items-center gap-2.5 font-medium">
+                  <BookmarkCheck className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                  <span>{cert}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>

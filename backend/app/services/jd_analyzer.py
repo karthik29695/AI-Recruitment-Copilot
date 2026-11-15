@@ -1,6 +1,7 @@
 import re
 from typing import Dict, Any, List
-from app.services.candidate_profiler import TECH_SKILLS_CATALOG, DEGREE_PATTERNS
+from app.services.skill_ontology import SKILL_ALIAS_MAP, normalize_skill, normalize_skill_list
+from app.services.candidate_profiler import DEGREE_PATTERNS
 
 JOB_TITLES_CATALOG = [
     "senior data scientist", "data scientist", "machine learning engineer",
@@ -57,30 +58,21 @@ def extract_education_required(text: str) -> str:
             return " ".join(match.group(0).split())[:60]
     return "Bachelor's or Master's degree in CS, Engineering or related technical field"
 
-def extract_jd_skills(text: str) -> Dict[str, List[str]]:
+def extract_jd_skills(text: str) -> List[str]:
+    """Extract required competencies from JD and normalize to canonical taxonomy."""
     lower_text = " " + text.lower() + " "
-    required_skills = []
+    matched_canonical = set()
 
-    for skill in TECH_SKILLS_CATALOG:
-        pattern = r'(?:\b|\W)' + re.escape(skill) + r'(?:\b|\W)'
+    sorted_aliases = sorted(SKILL_ALIAS_MAP.keys(), key=lambda x: len(x), reverse=True)
+    for alias in sorted_aliases:
+        if len(alias) <= 1:
+            continue
+        pattern = r'(?:\b|\W)' + re.escape(alias) + r'(?:\b|\W)'
         if re.search(pattern, lower_text):
-            formatted = skill.title()
-            if skill in ["sql", "html", "css", "aws", "gcp", "nlp", "mlops", "ci/cd", "rag", "llm"]:
-                formatted = skill.upper()
-            elif skill == "javascript":
-                formatted = "JavaScript"
-            elif skill == "fastapi":
-                formatted = "FastAPI"
-            elif skill == "pytorch":
-                formatted = "PyTorch"
-            elif skill == "tensorflow":
-                formatted = "TensorFlow"
-            
-            if formatted not in required_skills:
-                required_skills.append(formatted)
+            canonical = SKILL_ALIAS_MAP[alias]
+            matched_canonical.add(canonical)
 
-    # Sort with ML/Cloud/Core languages prioritized
-    return required_skills
+    return sorted(list(matched_canonical))
 
 def parse_job_description(raw_text: str) -> Dict[str, Any]:
     """

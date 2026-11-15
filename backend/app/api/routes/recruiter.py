@@ -26,17 +26,55 @@ from app.services.question_engine import generate_interview_questions_for_role
 from app.services.resume_parser import extract_text_from_file
 from app.services.candidate_profiler import parse_candidate_profile
 from app.services.jd_analyzer import parse_job_description
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/recruiter", tags=["Recruiter Operations"])
 
+DEMO_RECRUITER_EMAIL = "recruiter@infosys.com"
+
+def is_demo_recruiter(user: Optional[User]) -> bool:
+    """Check if current requester is the seeded demo recruiter or unauthenticated test client."""
+    if not isinstance(user, User):
+        return True
+    return user.email.lower() == DEMO_RECRUITER_EMAIL.lower()
+
 @router.get("/jobs", response_model=List[JobOut])
-def get_jobs(db: Session = Depends(get_db)):
-    """List all posted jobs with applicant metrics."""
-    jobs = db.query(Job).order_by(Job.created_at.desc()).all()
+def get_jobs(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """List posted jobs with applicant metrics scoped by account."""
+    user = current_user if isinstance(current_user, User) else None
+    if is_demo_recruiter(user):
+        # Demo recruiter sees pre-seeded demo jobs and any jobs created by them
+        if user:
+            jobs = db.query(Job).filter(
+                (Job.is_demo == True) | (Job.created_by_user_id == user.id)
+            ).order_by(Job.created_at.desc()).all()
+        else:
+            jobs = db.query(Job).filter(Job.is_demo == True).order_by(Job.created_at.desc()).all()
+    else:
+        # Non-demo recruiters strictly see only jobs they created (zero mock data)
+        jobs = db.query(Job).filter(
+            Job.created_by_user_id == user.id,
+            Job.is_demo == False
+        ).order_by(Job.created_at.desc()).all()
+
     result = []
     for job in jobs:
-        count = db.query(CandidateMatch).filter(CandidateMatch.job_id == job.job_id).count()
+        if is_demo_recruiter(user):
+            count = db.query(CandidateMatch).filter(CandidateMatch.job_id == job.job_id).count()
+        else:
+            # Count only non-demo candidates for non-demo recruiter
+            count = (
+                db.query(CandidateMatch)
+                .join(Candidate, CandidateMatch.candidate_id == Candidate.candidate_id)
+                .filter(
+                    CandidateMatch.job_id == job.job_id,
+                    Candidate.is_demo == False
+                )
+                .count()
+            )
         job_dict = {
             "job_id": job.job_id,
             "job_title": job.job_title,
@@ -51,22 +89,39 @@ def get_jobs(db: Session = Depends(get_db)):
     return result
 
 @router.post("/jobs", response_model=JobOut, status_code=status.HTTP_201_CREATED)
-def post_job(job_in: JobCreate, db: Session = Depends(get_db), current_user: Optional[User] = Depends(get_current_user)):
-    """Upload or post a new Job Description and immediately run candidate ranking against the candidate pool."""
+def post_job(
+    job_in: JobCreate,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
+    """Upload or post a new Job Description and immediately run candidate ranking against candidate pool."""
+    user = current_user if isinstance(current_user, User) else None
     new_job = Job(
         job_title=job_in.job_title,
         department=job_in.department,
         required_skills=job_in.required_skills,
         experience_required=job_in.experience_required,
         job_description=job_in.job_description,
-        created_by_user_id=current_user.id if current_user else None
+        created_by_user_id=user.id if user else None,
+        is_demo=False
     )
     db.add(new_job)
     db.commit()
     db.refresh(new_job)
 
-    # Automatically compute matches for all existing candidates in the pool
-    candidates = db.query(Candidate).all()
+    # Candidate pool for matching
+    if is_demo_recruiter(user):
+        candidates = db.query(Candidate).filter(
+            (Candidate.is_demo == True) |
+            (Candidate.uploaded_by_user_id == (user.id if user else None))
+        ).all()
+    else:
+        # Non-demo recruiter: strictly non-demo candidates (either uploaded by this recruiter or registered)
+        candidates = db.query(Candidate).filter(
+            Candidate.is_demo == False,
+            (Candidate.uploaded_by_user_id == user.id) | (Candidate.user_id.isnot(None))
+        ).all()
+
     for cand in candidates:
         eval_res = evaluate_candidate_match(
             candidate_skills_raw=cand.skills,
@@ -106,19 +161,35 @@ def post_job(job_in: JobCreate, db: Session = Depends(get_db), current_user: Opt
     )
 
 @router.get("/jobs/{job_id}/candidates", response_model=List[CandidateMatchItem])
-def get_job_candidates(job_id: int, db: Session = Depends(get_db)):
+def get_job_candidates(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Get candidate rankings for a specific job, sorted by compatibility match score descending."""
+    user = current_user if isinstance(current_user, User) else None
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    matches = (
+    if not is_demo_recruiter(user):
+        if job.created_by_user_id != user.id or job.is_demo:
+            raise HTTPException(status_code=404, detail="Job not found or access restricted")
+
+    query = (
         db.query(CandidateMatch, Candidate)
         .join(Candidate, CandidateMatch.candidate_id == Candidate.candidate_id)
         .filter(CandidateMatch.job_id == job_id)
-        .order_by(CandidateMatch.match_score.desc())
-        .all()
     )
+
+    if not is_demo_recruiter(user):
+        # Exclude mock demo candidates for non-demo recruiters
+        query = query.filter(
+            Candidate.is_demo == False,
+            (Candidate.uploaded_by_user_id == user.id) | (Candidate.user_id.isnot(None))
+        )
+
+    matches = query.order_by(CandidateMatch.match_score.desc()).all()
 
     ranked_list = []
     for match, cand in matches:
@@ -147,7 +218,12 @@ def get_job_candidates(job_id: int, db: Session = Depends(get_db)):
     return ranked_list
 
 @router.get("/jobs/{job_id}/candidates/{candidate_id}/analysis", response_model=CandidateDetailedEvaluation)
-def get_candidate_analysis(job_id: int, candidate_id: int, db: Session = Depends(get_db)):
+def get_candidate_analysis(
+    job_id: int,
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """
     Get in-depth analysis of a candidate against a job:
     - Full resume/profile details
@@ -156,13 +232,21 @@ def get_candidate_analysis(job_id: int, candidate_id: int, db: Session = Depends
     - Learning recommendations
     - Role-specific interview questions
     """
+    user = current_user if isinstance(current_user, User) else None
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    if not is_demo_recruiter(user):
+        if job.created_by_user_id != user.id or job.is_demo:
+            raise HTTPException(status_code=404, detail="Job not found or access restricted")
+
     cand = db.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
     if not cand:
         raise HTTPException(status_code=404, detail="Candidate not found")
+
+    if not is_demo_recruiter(user) and cand.is_demo:
+        raise HTTPException(status_code=404, detail="Candidate not found or access restricted")
 
     match = db.query(CandidateMatch).filter(
         CandidateMatch.job_id == job_id,
@@ -234,15 +318,28 @@ def get_candidate_analysis(job_id: int, candidate_id: int, db: Session = Depends
     )
 
 @router.post("/jobs/{job_id}/candidates/{candidate_id}/generate-questions", response_model=List[QuestionItem])
-def regenerate_candidate_questions(job_id: int, candidate_id: int, db: Session = Depends(get_db)):
+def regenerate_candidate_questions(
+    job_id: int,
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
+):
     """Regenerate customized interview questions tailored to the candidate and job."""
+    user = current_user if isinstance(current_user, User) else None
     job = db.query(Job).filter(Job.job_id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
+    if not is_demo_recruiter(user):
+        if job.created_by_user_id != user.id or job.is_demo:
+            raise HTTPException(status_code=404, detail="Job not found or access restricted")
+
     cand = db.query(Candidate).filter(Candidate.candidate_id == candidate_id).first()
     if not cand:
         raise HTTPException(status_code=404, detail="Candidate not found")
+
+    if not is_demo_recruiter(user) and cand.is_demo:
+        raise HTTPException(status_code=404, detail="Candidate not found or access restricted")
 
     eval_res = evaluate_candidate_match(
         candidate_skills_raw=cand.skills,
@@ -289,12 +386,14 @@ def regenerate_candidate_questions(job_id: int, candidate_id: int, db: Session =
 @router.post("/upload_resume", response_model=ResumeUploadResponse)
 async def upload_resume(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Ingest a candidate resume (PDF or DOCX), extract text, parse structured candidate profile,
     and persist into the candidate database.
     """
+    user = current_user if isinstance(current_user, User) else None
     filename = file.filename or "resume.pdf"
     ext = os.path.splitext(filename)[1].lower()
     if ext not in [".pdf", ".docx", ".doc", ".txt"]:
@@ -322,6 +421,9 @@ async def upload_resume(
     # 2. Extract structured candidate profile
     profile = parse_candidate_profile(raw_text, filename)
 
+    proj_str = json.dumps(profile["projects"]) if profile.get("projects") else ""
+    cert_str = "; ".join(profile["certifications"]) if profile.get("certifications") else ""
+
     # 3. Save or update Candidate record
     cand = db.query(Candidate).filter(Candidate.email == profile["email"]).first()
     if not cand:
@@ -332,7 +434,11 @@ async def upload_resume(
             education=profile["education"],
             experience=profile["experience"],
             skills=", ".join(profile["skills"]),
-            resume_path=filename
+            projects=proj_str,
+            certifications=cert_str,
+            resume_path=filename,
+            uploaded_by_user_id=user.id if user else None,
+            is_demo=False
         )
         db.add(cand)
     else:
@@ -341,12 +447,28 @@ async def upload_resume(
         cand.education = profile["education"]
         cand.experience = profile["experience"]
         cand.skills = ", ".join(profile["skills"])
+        cand.projects = proj_str or cand.projects
+        cand.certifications = cert_str or cand.certifications
         cand.resume_path = filename
+        if user:
+            cand.uploaded_by_user_id = user.id
+        cand.is_demo = False
     db.commit()
     db.refresh(cand)
 
-    # 4. Automatically match against all active jobs
-    jobs = db.query(Job).all()
+    # 4. Automatically match against relevant active jobs
+    if is_demo_recruiter(user):
+        jobs = db.query(Job).filter(
+            (Job.is_demo == True) |
+            (Job.created_by_user_id == (user.id if user else None))
+        ).all()
+    else:
+        # Non-demo recruiter: strictly matches only against this recruiter's non-demo jobs
+        jobs = db.query(Job).filter(
+            Job.created_by_user_id == user.id,
+            Job.is_demo == False
+        ).all()
+
     for job in jobs:
         eval_res = evaluate_candidate_match(
             candidate_skills_raw=cand.skills,
@@ -404,7 +526,8 @@ async def upload_resume(
         education=profile["education"],
         experience=profile["experience"],
         skills=profile["skills"],
-        certifications=profile["certifications"],
+        projects=profile.get("projects", []),
+        certifications=profile.get("certifications", []),
         extraction_accuracy=profile["extraction_accuracy"],
         message=f"Resume parsed successfully with {profile['extraction_accuracy']}% confidence score."
     )
@@ -414,12 +537,13 @@ async def upload_jd(
     file: Optional[UploadFile] = File(None),
     raw_text: Optional[str] = Form(None),
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Ingest a Job Description from either a file upload (.pdf, .docx, .txt) or pasted raw text,
     extract structured requirements (skills, experience, education), and publish the Job.
     """
+    user = current_user if isinstance(current_user, User) else None
     jd_content = ""
     filename = "uploaded_jd.txt"
 
@@ -445,14 +569,26 @@ async def upload_jd(
         required_skills=parsed_jd["required_skills_str"],
         experience_required=parsed_jd["experience_required"],
         job_description=parsed_jd["job_description"],
-        created_by_user_id=current_user.id if current_user else None
+        created_by_user_id=user.id if user else None,
+        is_demo=False
     )
     db.add(new_job)
     db.commit()
     db.refresh(new_job)
 
-    # 3. Evaluate all candidate profiles against the new Job
-    candidates = db.query(Candidate).all()
+    # 3. Evaluate candidate profiles against the new Job
+    if is_demo_recruiter(user):
+        candidates = db.query(Candidate).filter(
+            (Candidate.is_demo == True) |
+            (Candidate.uploaded_by_user_id == (user.id if user else None))
+        ).all()
+    else:
+        # Strictly non-demo candidates for non-demo recruiters
+        candidates = db.query(Candidate).filter(
+            Candidate.is_demo == False,
+            (Candidate.uploaded_by_user_id == user.id) | (Candidate.user_id.isnot(None))
+        ).all()
+
     for cand in candidates:
         eval_res = evaluate_candidate_match(
             candidate_skills_raw=cand.skills,

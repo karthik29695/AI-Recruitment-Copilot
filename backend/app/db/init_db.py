@@ -12,6 +12,35 @@ from app.services.question_engine import generate_interview_questions_for_role
 
 def init_db(db: Session):
     Base.metadata.create_all(bind=engine)
+
+    # Ensure SQLite columns exist if previously initialized without them
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Check is_demo on jobs
+            res = conn.execute(text("PRAGMA table_info(jobs)")).fetchall()
+            job_cols = [r[1] for r in res]
+            if "is_demo" not in job_cols:
+                conn.execute(text("ALTER TABLE jobs ADD COLUMN is_demo BOOLEAN DEFAULT 0"))
+                conn.commit()
+
+            # Check is_demo, uploaded_by_user_id, projects, certifications on candidates
+            res_c = conn.execute(text("PRAGMA table_info(candidates)")).fetchall()
+            cand_cols = [r[1] for r in res_c]
+            if "is_demo" not in cand_cols:
+                conn.execute(text("ALTER TABLE candidates ADD COLUMN is_demo BOOLEAN DEFAULT 0"))
+                conn.commit()
+            if "uploaded_by_user_id" not in cand_cols:
+                conn.execute(text("ALTER TABLE candidates ADD COLUMN uploaded_by_user_id INTEGER"))
+                conn.commit()
+            if "projects" not in cand_cols:
+                conn.execute(text("ALTER TABLE candidates ADD COLUMN projects TEXT"))
+                conn.commit()
+            if "certifications" not in cand_cols:
+                conn.execute(text("ALTER TABLE candidates ADD COLUMN certifications TEXT"))
+                conn.commit()
+    except Exception as e:
+        pass
     
     # 1. Seed demo users
     demo_users = [
@@ -67,7 +96,8 @@ def init_db(db: Session):
             required_skills="Python, TensorFlow, PyTorch, Kubernetes, MLOps, AWS SageMaker, SQL",
             experience_required="5+ years",
             job_description="Lead the design and productionization of large-scale predictive and generative models, establish end-to-end MLOps pipelines, and collaborate with engineering teams for seamless deployment.",
-            created_by_user_id=recruiter_id
+            created_by_user_id=recruiter_id,
+            is_demo=True
         )
         job2 = Job(
             job_title="Full Stack Software Engineer",
@@ -75,73 +105,91 @@ def init_db(db: Session):
             required_skills="React, TypeScript, Node.js, FastAPI, PostgreSQL, Docker, Git",
             experience_required="3+ years",
             job_description="Architect resilient microservices and responsive web user interfaces. Build robust RESTful APIs with FastAPI and craft delightful UI components with modern React and Tailwind CSS.",
-            created_by_user_id=recruiter_id
+            created_by_user_id=recruiter_id,
+            is_demo=True
         )
         db.add_all([job1, job2])
         db.commit()
 
-    # 3. Seed Candidates from project slides if candidates table is empty or sparse
-    if db.query(Candidate).count() < 4:
-        cand_user = db.query(User).filter(User.email == "candidate@gmail.com").first()
+    # 3. Seed & update Candidates from project slides
+    cand_user = db.query(User).filter(User.email == "candidate@gmail.com").first()
 
-        candidates_data = [
-            {
-                "user_id": cand_user.id if cand_user else None,
-                "name": "Sarah Johnson",
-                "email": "sarah.johnson@example.com",
-                "phone": "(555) 123-4567",
-                "education": "MS Computer Science, Stanford University",
-                "experience": "5 years",
-                "skills": "Python, Machine Learning, TensorFlow, SQL, Data Analysis, NLP",
-                "resume_path": "Sarah_Johnson_Resume.pdf"
-            },
-            {
-                "user_id": None,
-                "name": "Michael Chen",
-                "email": "michael.chen@example.com",
-                "phone": "(555) 234-5678",
-                "education": "BS Software Engineering, UC Berkeley",
-                "experience": "8 years",
-                "skills": "PyTorch, Computer Vision, Deep Learning, Python, Docker, C++",
-                "resume_path": "Michael_Chen_Resume.pdf"
-            },
-            {
-                "user_id": None,
-                "name": "Emily Rodriguez",
-                "email": "emily.rodriguez@example.com",
-                "phone": "(555) 345-6789",
-                "education": "MS Data Analytics, Georgia Tech",
-                "experience": "4 years",
-                "skills": "R, Statistics, Data Viz, SQL, Python, Tableau",
-                "resume_path": "Emily_Rodriguez_Resume.pdf"
-            },
-            {
-                "user_id": None,
-                "name": "David Park",
-                "email": "david.park@example.com",
-                "phone": "(555) 456-7890",
-                "education": "B.Tech Computer Science, UT Austin",
-                "experience": "3 years",
-                "skills": "React, TypeScript, Node.js, FastAPI, PostgreSQL, Tailwind",
-                "resume_path": "David_Park_Resume.pdf"
-            }
-        ]
+    candidates_data = [
+        {
+            "user_id": cand_user.id if cand_user else None,
+            "name": "Sarah Johnson",
+            "email": "sarah.johnson@example.com",
+            "phone": "(555) 123-4567",
+            "education": "MS Computer Science, Stanford University",
+            "experience": "5 years",
+            "skills": "Python, Machine Learning, TensorFlow, SQL, Data Analysis, Natural Language Processing, Data Structures & Algorithms",
+            "projects": "Predictive Healthcare Triage System with Transformer Models; Automated Document NLP Extraction Pipeline; Real-Time Fraud Detection Engine with Redis & Kafka",
+            "certifications": "AWS Certified Machine Learning Specialist; TensorFlow Developer Certificate; Stanford Deep Learning Specialization",
+            "resume_path": "Sarah_Johnson_Resume.pdf"
+        },
+        {
+            "user_id": None,
+            "name": "Michael Chen",
+            "email": "michael.chen@example.com",
+            "phone": "(555) 234-5678",
+            "education": "BS Software Engineering, UC Berkeley",
+            "experience": "8 years",
+            "skills": "PyTorch, Computer Vision, Deep Learning, Python, Docker, C++, Kubernetes",
+            "projects": "Autonomous Vehicle Edge Vision Processing using TensorRT; High-Throughput Real-time Video Analytics Pipeline; Distributed Model Serving on K8s",
+            "certifications": "Certified Kubernetes Administrator (CKA); NVIDIA Deep Learning Institute Computer Vision Certification",
+            "resume_path": "Michael_Chen_Resume.pdf"
+        },
+        {
+            "user_id": None,
+            "name": "Emily Rodriguez",
+            "email": "emily.rodriguez@example.com",
+            "phone": "(555) 345-6789",
+            "education": "MS Data Analytics, Georgia Tech",
+            "experience": "4 years",
+            "skills": "R, Statistics, Data Viz, SQL, Python, Tableau, Power BI",
+            "projects": "Enterprise Supply Chain Optimization Analytics; Customer Churn Survival Modeling; Interactive Executive KPI Dashboards",
+            "certifications": "Google Data Analytics Professional; Tableau Desktop Certified Specialist",
+            "resume_path": "Emily_Rodriguez_Resume.pdf"
+        },
+        {
+            "user_id": None,
+            "name": "David Park",
+            "email": "david.park@example.com",
+            "phone": "(555) 456-7890",
+            "education": "B.Tech Computer Science, UT Austin",
+            "experience": "3 years",
+            "skills": "React, TypeScript, Node.js, FastAPI, PostgreSQL, Tailwind, Docker, Data Structures & Algorithms",
+            "projects": "Collaborative Real-time Canvas Tool with WebSockets; Microservices E-Commerce API Gateway with FastAPI; Modern Design System UI Library",
+            "certifications": "AWS Certified Developer Associate; Meta Front-End Developer Professional",
+            "resume_path": "David_Park_Resume.pdf"
+        }
+    ]
 
-        for c_data in candidates_data:
-            existing_c = db.query(Candidate).filter(Candidate.email == c_data["email"]).first()
-            if not existing_c:
-                c = Candidate(
-                    user_id=c_data["user_id"],
-                    name=c_data["name"],
-                    email=c_data["email"],
-                    phone=c_data["phone"],
-                    education=c_data["education"],
-                    experience=c_data["experience"],
-                    skills=c_data["skills"],
-                    resume_path=c_data["resume_path"]
-                )
-                db.add(c)
-        db.commit()
+    for c_data in candidates_data:
+        existing_c = db.query(Candidate).filter(Candidate.email == c_data["email"]).first()
+        if not existing_c:
+            c = Candidate(
+                user_id=c_data["user_id"],
+                name=c_data["name"],
+                email=c_data["email"],
+                phone=c_data["phone"],
+                education=c_data["education"],
+                experience=c_data["experience"],
+                skills=c_data["skills"],
+                projects=c_data["projects"],
+                certifications=c_data["certifications"],
+                resume_path=c_data["resume_path"],
+                is_demo=True
+            )
+            db.add(c)
+        else:
+            if not existing_c.projects:
+                existing_c.projects = c_data["projects"]
+            if not existing_c.certifications:
+                existing_c.certifications = c_data["certifications"]
+            if "Data Structures & Algorithms" not in (existing_c.skills or ""):
+                existing_c.skills = c_data["skills"]
+    db.commit()
 
     # 4. Generate Candidate Matches and Skill Gap Reports for all active jobs
     jobs = db.query(Job).all()
