@@ -2,9 +2,10 @@ const API_BASE_URL = 'http://127.0.0.1:8000/api/v1';
 
 export async function apiRequest(endpoint, options = {}) {
   const token = localStorage.getItem('rc_token');
+  const isFormData = options.body instanceof FormData;
   
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };

@@ -5,6 +5,8 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.db.init_db import init_db
 from app.api.routes.auth import router as auth_router
+from app.api.routes.recruiter import router as recruiter_router
+from app.api.routes.candidate import router as candidate_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,6 +37,8 @@ app.add_middleware(
 
 # Register API routes
 app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(recruiter_router, prefix=settings.API_V1_STR)
+app.include_router(candidate_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
 def root():

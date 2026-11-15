@@ -19,14 +19,14 @@ export default function HRDashboard() {
               Welcome back, {user?.full_name}
             </h1>
             <p className="text-slate-300 text-sm mt-1">
-              Organization: {user?.company_or_institution || 'Infosys Human Resources'} • Strategic Hiring & Talent Analytics
+              Organization: {user?.company_or_institution || 'Corporate Human Resources'} • Strategic Hiring & Talent Analytics
             </p>
           </div>
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 text-center min-w-[160px]">
             <span className="text-xs text-purple-200 font-medium">Platform Status</span>
             <div className="text-xl font-bold text-emerald-400 flex items-center justify-center gap-1.5 mt-0.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-              Milestone 1 Active
+              Platform Active
             </div>
           </div>
         </div>
@@ -82,7 +82,7 @@ export default function HRDashboard() {
       {/* Overview Card */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
         <h2 className="text-base font-bold text-slate-900 mb-2">
-          Milestone 1: Authentication & Profiling Verified
+          Talent Acquisition & Workforce Overview
         </h2>
         <p className="text-sm text-slate-600 leading-relaxed">
           You are authenticated as an <strong>HR Manager</strong>. The AI Recruitment Copilot enables HR leaders to supervise automated resume ingestion, ensure standardized competency scoring, and configure job profile benchmarks across all enterprise teams.
