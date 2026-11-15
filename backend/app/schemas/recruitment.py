@@ -99,3 +99,60 @@ class JDUploadResponse(BaseModel):
     required_skills: List[str]
     job_description: str
     applicants_evaluated: int
+
+class CandidateJobItem(BaseModel):
+    job_id: int
+    job_title: str
+    department: Optional[str] = None
+    required_skills: Optional[str] = None
+    experience_required: Optional[str] = None
+    job_description: Optional[str] = None
+    created_at: Optional[datetime] = None
+    has_applied: bool = False
+    application_status: Optional[str] = None
+    match_score: Optional[float] = None
+
+class CandidateApplicationOut(BaseModel):
+    match_id: int
+    job_id: int
+    job_title: str
+    department: Optional[str] = None
+    experience_required: Optional[str] = None
+    required_skills: Optional[str] = None
+    job_description: Optional[str] = None
+    applied_at: Optional[datetime] = None
+    status: str
+    match_score: float
+    hiring_score: float
+    matched_skills: List[str] = []
+    missing_skills: List[str] = []
+    recommendation_notes: Optional[str] = None
+    recommended_courses: List[str] = []
+    questions: List[QuestionItem] = []
+
+class ApplicationResponse(BaseModel):
+    status: str
+    message: str
+    job_id: int
+    job_title: str
+    match_score: float
+    hiring_score: float
+    application_status: str
+
+class HRCandidateItem(BaseModel):
+    match_id: int
+    candidate_id: int
+    name: str
+    email: str
+    job_id: int
+    job_title: str
+    department: str
+    match_score: float
+    hiring_score: float
+    status: str
+    experience: Optional[str] = None
+    education: Optional[str] = None
+    applied_at: Optional[datetime] = None
+
+class HRStatusUpdate(BaseModel):
+    status: str

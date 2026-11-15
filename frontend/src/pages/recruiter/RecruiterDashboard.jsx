@@ -31,7 +31,12 @@ import {
   FolderGit2,
   BookmarkCheck,
   ExternalLink,
-  Github
+  Github,
+  LayoutDashboard,
+  Search,
+  Filter,
+  TrendingUp,
+  ArrowRight
 } from 'lucide-react';
 
 export default function RecruiterDashboard() {
@@ -39,10 +44,15 @@ export default function RecruiterDashboard() {
   const resumeInputRef = useRef(null);
   const jdFileInputRef = useRef(null);
 
+  // Tab State: 'dashboard' | 'jobs_posted' | 'applicants_matching'
+  const [activeTab, setActiveTab] = useState('dashboard');
+
   // Jobs state
   const [jobs, setJobs] = useState([]);
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [loadingJobs, setLoadingJobs] = useState(true);
+  const [jobSearch, setJobSearch] = useState('');
+  const [deptFilter, setDeptFilter] = useState('All');
 
   // Candidates list for selected job
   const [candidates, setCandidates] = useState([]);
@@ -139,8 +149,8 @@ export default function RecruiterDashboard() {
     if (!selectedJobId || !selectedCandidateId) return;
     setRegeneratingQuestions(true);
     try {
-      const newQs = await regenerateQuestionsApi(selectedJobId, selectedCandidateId);
-      setCandidateAnalysis(prev => prev ? { ...prev, questions: newQs } : prev);
+      const newQuestions = await regenerateQuestionsApi(selectedJobId, selectedCandidateId);
+      setCandidateAnalysis(prev => prev ? { ...prev, questions: newQuestions } : prev);
     } catch (err) {
       console.error('Failed to regenerate questions:', err);
     } finally {
@@ -159,8 +169,8 @@ export default function RecruiterDashboard() {
     try {
       const res = await uploadResumeApi(file);
       setResumeUploadResult(res);
-
-      // Refresh candidate list for the currently active job
+      // Reload jobs to refresh applicant counters
+      await loadJobs();
       if (selectedJobId) {
         await loadCandidatesForJob(selectedJobId);
       }
@@ -182,15 +192,15 @@ export default function RecruiterDashboard() {
     try {
       if (jdMode === 'file') {
         if (!selectedJdFile) {
-          throw new Error('Please select a Job Description document (.pdf, .docx, .txt).');
+          throw new Error('Please select a PDF or DOCX Job Description document.');
         }
-        const created = await uploadJDApi({ file: selectedJdFile });
+        const created = await uploadJDApi(selectedJdFile);
         const refreshedJobs = await getJobsApi();
         setJobs(refreshedJobs);
         setSelectedJobId(created.job_id);
       } else {
         if (!newJobTitle.trim() || !newJobSkills.trim()) {
-          throw new Error('Please provide Job Title and Required Skills.');
+          throw new Error('Please fill in Job Title and Required Skills.');
         }
         const created = await postJobApi({
           job_title: newJobTitle,
@@ -219,8 +229,20 @@ export default function RecruiterDashboard() {
 
   const activeJob = jobs.find(j => j.job_id === selectedJobId);
 
+  // Departments
+  const departments = ['All', ...new Set(jobs.map(j => j.department).filter(Boolean))];
+  const filteredJobs = jobs.filter(j => {
+    const matchesSearch = 
+      (j.job_title || '').toLowerCase().includes(jobSearch.toLowerCase()) ||
+      (j.required_skills || '').toLowerCase().includes(jobSearch.toLowerCase());
+    const matchesDept = deptFilter === 'All' || j.department === deptFilter;
+    return matchesSearch && matchesDept;
+  });
+
+  const totalApplicantsCount = jobs.reduce((sum, j) => sum + (j.applicants_count || 0), 0);
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       
       {/* Hidden file input for recruiter resume uploads */}
       <input
@@ -231,37 +253,98 @@ export default function RecruiterDashboard() {
         className="hidden"
       />
 
-      {/* 1. Header Banner & Actions */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-slate-200 gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Recruiter Workspace
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Logged in as <strong>{user?.full_name}</strong> • AI resume parsing, job description analysis, compatibility rankings & skill gaps
-          </p>
-        </div>
+      {/* Top Banner & Quick Actions */}
+      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-lg">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-semibold mb-3">
+              <Briefcase className="w-3.5 h-3.5" />
+              Talent Acquisition & Sourcing Portal
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              Recruiter Workspace
+            </h1>
+            <p className="text-slate-300 text-sm mt-1">
+              Logged in as <strong>{user?.full_name}</strong> • AI resume parsing, job requisition analysis, candidate ranking & interview intelligence
+            </p>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Ingest Candidate Resume (PDF / DOCX) */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Upload Candidate Resume */}
+            <button
+              onClick={() => resumeInputRef.current?.click()}
+              disabled={uploadingResume}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs sm:text-sm font-semibold backdrop-blur-md transition-colors disabled:opacity-50"
+            >
+              <UploadCloud className="w-4 h-4 text-blue-400" />
+              <span>{uploadingResume ? 'Parsing Resume...' : 'Direct Resume Sourcing'}</span>
+            </button>
+
+            {/* Post Job Description */}
+            <button
+              onClick={() => setShowPostModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-500/20 transition-all"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Post New Requisition</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Tab Navigation Bar */}
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white p-2 rounded-2xl shadow-sm">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => resumeInputRef.current?.click()}
-            disabled={uploadingResume}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-xl text-sm font-semibold shadow-xs transition-colors disabled:opacity-50"
+            onClick={() => setActiveTab('dashboard')}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'dashboard'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
           >
-            <UploadCloud className="w-4 h-4 text-blue-600" />
-            {uploadingResume ? 'Parsing Resume (PDF/DOCX)...' : 'Upload Candidate Resume'}
+            <LayoutDashboard className="w-4 h-4" />
+            <span>Recruiter Dashboard</span>
           </button>
 
-          {/* Upload / Post Job Description */}
           <button
-            onClick={() => setShowPostModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-sm font-semibold shadow-md shadow-blue-500/20 transition-all"
+            onClick={() => setActiveTab('jobs_posted')}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'jobs_posted'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
           >
-            <PlusCircle className="w-4 h-4" />
-            Post / Upload Job Description
+            <Briefcase className="w-4 h-4" />
+            <span>Jobs Posted (Requisitions)</span>
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+              activeTab === 'jobs_posted' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-700'
+            }`}>
+              {jobs.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('applicants_matching')}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              activeTab === 'applicants_matching'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Candidate Matching & Ranking</span>
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+              activeTab === 'applicants_matching' ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-700'
+            }`}>
+              {candidates.length}
+            </span>
           </button>
         </div>
+
+        <span className="hidden md:inline-flex text-xs text-slate-400 font-medium px-3">
+          AI Candidate Screening Suite
+        </span>
       </div>
 
       {/* Resume Ingestion Feedback Banner */}
@@ -283,9 +366,6 @@ export default function RecruiterDashboard() {
                     {s}
                   </span>
                 ))}
-                {resumeUploadResult.skills?.length > 8 && (
-                  <span className="text-[11px] text-emerald-700">+{resumeUploadResult.skills.length - 8} more</span>
-                )}
               </div>
             </div>
           </div>
@@ -309,75 +389,344 @@ export default function RecruiterDashboard() {
         </div>
       )}
 
-      {/* 2. Job Selector Navigation Pills */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-            <Briefcase className="w-3.5 h-3.5 text-blue-600" />
-            Active Job Requisitions ({jobs.length})
-          </span>
-          <span className="text-xs text-slate-400">Select a role to inspect evaluated applicants</span>
-        </div>
+      {/* ========================================================================= */}
+      {/* TAB 1: RECRUITER DASHBOARD OVERVIEW                                       */}
+      {/* ========================================================================= */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          {/* Key Pipeline Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Active Requisitions</span>
+                <span className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <Briefcase className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-slate-900 mt-2">{loadingJobs ? '...' : jobs.length}</div>
+              <span className="text-xs text-blue-600 font-medium mt-1 inline-block">Managed open positions</span>
+            </div>
 
-        {loadingJobs ? (
-          <div className="py-4 text-center text-xs text-slate-500">Loading requisitions...</div>
-        ) : jobs.length === 0 ? (
-          <div className="py-6 text-center text-slate-500 text-sm">
-            No jobs posted yet. Click <strong>Post / Upload Job Description</strong> to start.
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Applicants Evaluated</span>
+                <span className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                  <Users className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-slate-900 mt-2">{loadingJobs ? '...' : totalApplicantsCount}</div>
+              <span className="text-xs text-emerald-600 font-medium mt-1 inline-block">Across active requisitions</span>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Screening Target</span>
+                <span className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                  <TrendingUp className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-slate-900 mt-2">≥ 95%</div>
+              <span className="text-xs text-purple-600 font-medium mt-1 inline-block">Milestone 1 Met</span>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">AI Matching Engine</span>
+                <span className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                </span>
+              </div>
+              <div className="text-2xl font-bold text-slate-900 mt-2">Active</div>
+              <span className="text-xs text-slate-500 font-medium mt-1 inline-block">Semantic Ontology Normalizer</span>
+            </div>
           </div>
-        ) : (
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
-            {jobs.map((job) => {
-              const isActive = job.job_id === selectedJobId;
-              return (
+
+          {/* Quick Actions & Recent Jobs Overview */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Direct Sourcing Dropzone */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <UploadCloud className="w-4 h-4 text-blue-600" />
+                  Direct Resume Sourcing
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Ingest a candidate resume directly to automatically parse contact information, skills, projects, and certifications.
+              </p>
+              <div 
+                onClick={() => resumeInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-200 hover:border-blue-500 hover:bg-blue-50/20 transition-all rounded-xl p-6 text-center cursor-pointer"
+              >
+                <FileText className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                <span className="text-xs font-semibold text-slate-700 block">
+                  {uploadingResume ? 'Parsing Document...' : 'Upload PDF or DOCX Resume'}
+                </span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Direct recruiter candidate ingestion
+                </span>
+              </div>
+            </div>
+
+            {/* Recent Requisitions Snapshot */}
+            <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-blue-600" />
+                  Active Job Requisitions Summary
+                </h3>
                 <button
-                  key={job.job_id}
-                  onClick={() => setSelectedJobId(job.job_id)}
-                  className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-left border transition-all flex-shrink-0 ${
-                    isActive
-                      ? 'bg-blue-50 border-blue-400 text-blue-900 ring-2 ring-blue-500/10 shadow-sm'
-                      : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                  onClick={() => setActiveTab('jobs_posted')}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                >
+                  View All ({jobs.length}) <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {jobs.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  No job requisitions created yet. Click "Post New Requisition" above to begin.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {jobs.slice(0, 3).map((job) => (
+                    <div 
+                      key={job.job_id}
+                      className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 flex items-center justify-between gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                            {job.department || 'Engineering'}
+                          </span>
+                          <span className="text-xs font-bold text-slate-900">{job.job_title}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
+                          Skills: {job.required_skills}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <span className="text-xs text-slate-600 font-semibold bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                          {job.applicants_count} Applicants
+                        </span>
+                        <button
+                          onClick={() => {
+                            setSelectedJobId(job.job_id);
+                            setActiveTab('applicants_matching');
+                          }}
+                          className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors"
+                        >
+                          Review
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 2: POSTED JOBS (REQUISITIONS)                                         */}
+      {/* ========================================================================= */}
+      {activeTab === 'jobs_posted' && (
+        <div className="space-y-6">
+          
+          {/* Controls: Search, Filter, Post Button */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search requisitions by title or technical skills..."
+                value={jobSearch}
+                onChange={(e) => setJobSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              <Filter className="w-3.5 h-3.5 text-slate-400 ml-1 mr-0.5" />
+              {departments.map((dept) => (
+                <button
+                  key={dept}
+                  onClick={() => setDeptFilter(dept)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                    deptFilter === dept
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <div className={`p-1.5 rounded-lg ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                    <Briefcase className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold">{job.job_title}</div>
-                    <div className="text-[11px] text-slate-500">
-                      {job.department} • {job.applicants_count} applicants
+                  {dept}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowPostModal(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex-shrink-0"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Create Requisition</span>
+            </button>
+          </div>
+
+          {/* Job Cards Grid */}
+          {loadingJobs ? (
+            <div className="py-16 text-center text-slate-500">
+              <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs font-semibold">Loading job requisitions...</p>
+            </div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <Briefcase className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <h3 className="font-bold text-slate-800 text-base">No Requisitions Found</h3>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                No active job requisitions match your criteria. Post a new JD or clear your search filter.
+              </p>
+              <button
+                onClick={() => setShowPostModal(true)}
+                className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Post Requisition</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {filteredJobs.map((job) => {
+                const skills = (job.required_skills || '').split(',').map(s => s.trim()).filter(Boolean);
+
+                return (
+                  <div 
+                    key={job.job_id} 
+                    className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-blue-400 hover:shadow-md transition-all"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                          <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200">
+                            {job.department || 'Engineering'}
+                          </span>
+                          <h3 className="text-base font-bold text-slate-900 mt-1.5 leading-snug">
+                            {job.job_title}
+                          </h3>
+                        </div>
+
+                        <div className="text-center bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-100 flex-shrink-0">
+                          <span className="text-[10px] text-blue-600 font-bold block">APPLICANTS</span>
+                          <span className="text-base font-extrabold text-blue-950">{job.applicants_count}</span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-600 line-clamp-2 mb-3">
+                        {job.job_description || 'Active technical job requisition.'}
+                      </p>
+
+                      <div className="space-y-2 mb-4">
+                        <div className="text-xs text-slate-500">
+                          Experience Required: <strong className="text-slate-700">{job.experience_required}</strong>
+                        </div>
+
+                        {skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {skills.slice(0, 5).map((s, idx) => (
+                              <span key={idx} className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-medium">
+                                {s}
+                              </span>
+                            ))}
+                            {skills.length > 5 && (
+                              <span className="px-1.5 py-0.5 text-[11px] text-slate-400">
+                                +{skills.length - 5} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400">
+                        Posted {job.created_at ? new Date(job.created_at).toLocaleDateString() : 'Recently'}
+                      </span>
+
+                      <button
+                        onClick={() => {
+                          setSelectedJobId(job.job_id);
+                          setActiveTab('applicants_matching');
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Review Applicants ({job.applicants_count})</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                );
+              })}
+            </div>
+          )}
 
-      {/* When no jobs exist yet for this recruiter account, display clean empty state */}
-      {!loadingJobs && jobs.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center shadow-sm">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4 border border-blue-100">
-            <Briefcase className="w-8 h-8" />
-          </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-1">
-            No Job Descriptions Posted Yet
-          </h3>
-          <p className="text-sm text-slate-500 max-w-lg mx-auto mb-6">
-            Your workspace is clean and ready. Upload a Job Description document (PDF/DOCX) or paste role requirements to automatically extract skills, establish benchmark criteria, and rank candidates.
-          </p>
-          <button
-            onClick={() => setShowPostModal(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-sm font-semibold shadow-md shadow-blue-500/20 transition-all"
-          >
-            <PlusCircle className="w-4 h-4" />
-            Post / Upload First Job Description
-          </button>
         </div>
-      ) : (
-        <>
-          {/* 3. Selected Job Snapshot Banner */}
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: CANDIDATE MATCHING & RANKING                                       */}
+      {/* ========================================================================= */}
+      {activeTab === 'applicants_matching' && (
+        <div className="space-y-6">
+          
+          {/* Job Selector Pills */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Briefcase className="w-3.5 h-3.5 text-blue-600" />
+                Select Requisition to Inspect Evaluated Applicants ({jobs.length})
+              </span>
+            </div>
+
+            {loadingJobs ? (
+              <div className="py-4 text-center text-xs text-slate-500">Loading requisitions...</div>
+            ) : jobs.length === 0 ? (
+              <div className="py-6 text-center text-slate-500 text-sm">
+                No jobs posted yet. Click <strong>Create Requisition</strong> to start.
+              </div>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {jobs.map((job) => {
+                  const isActive = job.job_id === selectedJobId;
+                  return (
+                    <button
+                      key={job.job_id}
+                      onClick={() => setSelectedJobId(job.job_id)}
+                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-left border transition-all flex-shrink-0 ${
+                        isActive
+                          ? 'bg-blue-50 border-blue-400 text-blue-900 ring-2 ring-blue-500/10 shadow-sm'
+                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                      }`}
+                    >
+                      <div className={`p-1.5 rounded-lg ${isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                        <Briefcase className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">{job.job_title}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {job.department} • {job.applicants_count} applicants
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {activeJob && (
             <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
@@ -389,7 +738,7 @@ export default function RecruiterDashboard() {
                 </div>
                 <h2 className="text-xl sm:text-2xl font-bold">{activeJob.job_title}</h2>
                 <p className="text-xs text-slate-300 max-w-3xl line-clamp-2 mt-1">
-                  {activeJob.job_description || 'No detailed description provided.'}
+                  {activeJob.job_description || 'Active technical job requisition.'}
                 </p>
                 <div className="flex flex-wrap items-center gap-1.5 pt-2">
                   <span className="text-xs text-slate-400 font-semibold mr-1">Required Skills:</span>
@@ -402,16 +751,16 @@ export default function RecruiterDashboard() {
               </div>
 
               <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 text-center min-w-[140px] flex-shrink-0">
-                <span className="text-xs text-slate-300">Total Ingested</span>
+                <span className="text-xs text-slate-300">Total Applicants</span>
                 <div className="text-2xl font-bold text-white mt-0.5">
                   {candidates.length}
                 </div>
-                <span className="text-[11px] text-emerald-400 font-medium">Ranked & Evaluated</span>
+                <span className="text-[11px] text-emerald-400 font-medium">Ranked by Match</span>
               </div>
             </div>
           )}
 
-          {/* 4. Main Two-Column Layout */}
+          {/* Two-Column Candidate Rankings + Detailed Evaluation Dossier */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             
             {/* Left Column (5 Cols): Candidate Rankings */}
@@ -420,22 +769,22 @@ export default function RecruiterDashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
                     <Users className="w-4 h-4 text-blue-600" />
-                    Candidate Rankings ({candidates.length})
+                    Applicant Rankings ({candidates.length})
                   </h3>
-                  <span className="text-xs text-slate-400">Ranked by Match Score</span>
+                  <span className="text-xs text-slate-400">Sorted by Match Fit</span>
                 </div>
 
                 {loadingCandidates ? (
                   <div className="py-12 text-center text-xs text-slate-500">
                     <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                    Calculating semantic matches...
+                    Calculating semantic compatibility...
                   </div>
                 ) : candidates.length === 0 ? (
                   <div className="py-8 text-center text-slate-500 text-xs px-4 space-y-2">
                     <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
-                    <p className="font-semibold text-slate-700">No candidates evaluated yet for this role</p>
+                    <p className="font-semibold text-slate-700">No applicants for this role yet</p>
                     <p className="text-[11px] text-slate-500">
-                      Click <strong>Upload Candidate Resume</strong> above to ingest a candidate resume (PDF/DOCX) and run automated matching.
+                      When candidates apply from their portal or you upload a resume via direct sourcing, evaluated applicants will appear here ranked by compatibility.
                     </p>
                   </div>
                 ) : (
@@ -471,18 +820,16 @@ export default function RecruiterDashboard() {
                               </div>
                             </div>
 
-                            {/* Match Score Badge */}
                             <div className="text-right">
                               <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${scoreBadgeColor}`}>
                                 {cand.match_score}% Match
                               </span>
                               <div className="text-[10px] text-slate-500 mt-0.5">
-                                Score: {cand.hiring_score}/100
+                                Hiring Score: {cand.hiring_score}/100
                               </div>
                             </div>
                           </div>
 
-                          {/* Candidate Details & Key Skills */}
                           <div className="mt-3 flex items-center justify-between text-xs text-slate-600">
                             <span>Exp: <strong>{cand.experience || 'N/A'}</strong></span>
                             <div className="flex items-center gap-1">
@@ -493,7 +840,6 @@ export default function RecruiterDashboard() {
                             </div>
                           </div>
 
-                          {/* Skills Chips */}
                           <div className="mt-2 flex flex-wrap gap-1">
                             {cand.key_skills?.map((skill, sIdx) => (
                               <span key={sIdx} className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] text-slate-700">
@@ -502,13 +848,12 @@ export default function RecruiterDashboard() {
                             ))}
                           </div>
 
-                          {/* Status & Recommendation */}
                           <div className="mt-3 pt-2 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
                             <span className="text-slate-500">
-                              Rec: <strong className="text-slate-800">{cand.recommendation}</strong>
+                              Status: <strong className="text-slate-800">{cand.status}</strong>
                             </span>
                             <span className="text-blue-600 font-semibold inline-flex items-center gap-0.5">
-                              View Analysis <ChevronRight className="w-3.5 h-3.5" />
+                              View Dossier <ChevronRight className="w-3.5 h-3.5" />
                             </span>
                           </div>
                         </div>
@@ -519,7 +864,7 @@ export default function RecruiterDashboard() {
               </div>
             </div>
 
-            {/* Right Column (7 Cols): Deep Review: Skill Gaps & Interview Questions */}
+            {/* Right Column (7 Cols): Deep Review: Skill Gaps, Projects, Interview Questions */}
             <div className="lg:col-span-7 space-y-6">
               
               {loadingAnalysis ? (
@@ -529,7 +874,7 @@ export default function RecruiterDashboard() {
                 </div>
               ) : !candidateAnalysis ? (
                 <div className="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm text-center text-slate-500 text-sm">
-                  Select a candidate from the left panel to review skill gaps and generated interview questions.
+                  Select an applicant from the left panel to review portfolio projects, skill gaps, and generated interview questions.
                 </div>
               ) : (
                 <>
@@ -548,7 +893,6 @@ export default function RecruiterDashboard() {
                         </p>
                       </div>
 
-                      {/* Resume Attached Tag */}
                       <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
                         <FileText className="w-4 h-4 text-blue-600" />
                         <span className="text-xs font-semibold text-slate-800">
@@ -571,7 +915,7 @@ export default function RecruiterDashboard() {
                         <div className="text-lg font-bold text-slate-800 mt-0.5">{candidateAnalysis.candidate.experience || 'N/A'}</div>
                       </div>
                       <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                        <span className="text-[11px] text-slate-500">Application</span>
+                        <span className="text-[11px] text-slate-500">Status</span>
                         <div className="text-lg font-bold text-purple-600 mt-0.5">{candidateAnalysis.status}</div>
                       </div>
                     </div>
@@ -664,7 +1008,6 @@ export default function RecruiterDashboard() {
                       <span className="text-xs text-slate-400">Target Role: {candidateAnalysis.job_title}</span>
                     </div>
 
-                    {/* Matched vs Missing Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-200/70">
                         <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5 mb-2">
@@ -705,7 +1048,6 @@ export default function RecruiterDashboard() {
                       </div>
                     </div>
 
-                    {/* AI Upskilling Recommendations */}
                     <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-100 space-y-2">
                       <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
                         <BookOpen className="w-4 h-4 text-blue-600" />
@@ -749,7 +1091,6 @@ export default function RecruiterDashboard() {
                       </button>
                     </div>
 
-                    {/* Questions List */}
                     <div className="space-y-3">
                       {candidateAnalysis.questions?.map((q, qIdx) => (
                         <div key={qIdx} className="p-4 rounded-xl bg-slate-50/70 border border-slate-200 space-y-2">
@@ -785,10 +1126,11 @@ export default function RecruiterDashboard() {
             </div>
 
           </div>
-        </>
+
+        </div>
       )}
 
-      {/* 5. Modal for Uploading / Posting Job Description */}
+      {/* Modal for Uploading / Posting Job Description */}
       {showPostModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
@@ -799,7 +1141,7 @@ export default function RecruiterDashboard() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Post / Upload Job Description</h3>
-                  <p className="text-xs text-slate-500">Auto-extracts skills & ranks all candidate profiles upon creation</p>
+                  <p className="text-xs text-slate-500">Publish requisition to candidate portal for applications</p>
                 </div>
               </div>
               <button 
@@ -810,7 +1152,6 @@ export default function RecruiterDashboard() {
               </button>
             </div>
 
-            {/* Mode Selector Tabs: Upload Document vs Manual Form */}
             <div className="mt-4 flex rounded-lg bg-slate-100 p-1 border border-slate-200">
               <button
                 type="button"
@@ -842,126 +1183,122 @@ export default function RecruiterDashboard() {
             <form onSubmit={handleCreateJob} className="mt-4 space-y-4">
               
               {jdMode === 'file' ? (
-                /* File Upload Dropzone */
                 <div className="space-y-4">
                   <div 
                     onClick={() => jdFileInputRef.current?.click()}
                     className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-8 text-center bg-slate-50 hover:bg-blue-50/30 transition-all cursor-pointer"
                   >
-                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto mb-3">
-                      <FileUp className="w-6 h-6" />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {selectedJdFile ? selectedJdFile.name : 'Click to select or drag & drop Job Description document'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Supported formats: PDF, DOCX, TXT
-                    </p>
-                    <input
-                      ref={jdFileInputRef}
-                      type="file"
-                      accept=".pdf,.docx,.doc,.txt"
-                      onChange={(e) => setSelectedJdFile(e.target.files?.[0] || null)}
-                      className="hidden"
-                    />
+                    <FileUp className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                    <span className="text-sm font-semibold text-slate-800 block">
+                      {selectedJdFile ? selectedJdFile.name : 'Click to select Job Description document'}
+                    </span>
+                    <span className="text-xs text-slate-500 mt-1 block">
+                      Supports PDF, DOCX, or TXT
+                    </span>
                   </div>
 
-                  <p className="text-xs text-slate-500">
-                    The JD Analyzer will automatically extract the <strong>Job Title</strong>, <strong>Required Competencies</strong>, <strong>Experience Thresholds</strong>, and <strong>Education Criteria</strong>.
-                  </p>
+                  <input
+                    ref={jdFileInputRef}
+                    type="file"
+                    accept=".pdf,.docx,.doc,.txt"
+                    onChange={(e) => setSelectedJdFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
                 </div>
               ) : (
-                /* Manual Inputs */
                 <>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Job Title <span className="text-red-500">*</span>
+                      Job Role Title <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Senior Machine Learning Engineer, Cloud Architect"
+                      placeholder="e.g. Senior Data Scientist"
                       value={newJobTitle}
                       onChange={(e) => setNewJobTitle(e.target.value)}
-                      className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Department
-                      </label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Department</label>
                       <input
                         type="text"
-                        placeholder="Engineering / Data Science"
                         value={newJobDept}
                         onChange={(e) => setNewJobDept(e.target.value)}
-                        className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="e.g. AI & Analytics"
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                       />
                     </div>
+
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        Experience Required
-                      </label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Experience Required</label>
                       <input
                         type="text"
-                        placeholder="e.g. 3+ years, 5 years"
                         value={newJobExp}
                         onChange={(e) => setNewJobExp(e.target.value)}
-                        className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                        placeholder="e.g. 3+ years"
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Required Competencies & Skills <span className="text-red-500">*</span>
+                      Required Skills (Comma-separated) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Python, PyTorch, Kubernetes, MLOps, SQL, Docker (comma separated)"
+                      placeholder="e.g. Python, Machine Learning, PyTorch, Docker, SQL"
                       value={newJobSkills}
                       onChange={(e) => setNewJobSkills(e.target.value)}
-                      className="w-full text-xs sm:text-sm px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                     />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      The candidate matching engine will automatically compute skill coverage against these tags.
-                    </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Job Description / Role Responsibilities
-                    </label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Role Description (Optional)</label>
                     <textarea
-                      rows={4}
-                      placeholder="Paste or write the role responsibilities, deliverables, and team context..."
+                      rows={3}
+                      placeholder="Outline core responsibilities, team scope, and deliverables..."
                       value={newJobDesc}
                       onChange={(e) => setNewJobDesc(e.target.value)}
-                      className="w-full text-xs sm:text-sm p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none"
                     />
                   </div>
                 </>
               )}
 
-              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+              <div className="pt-2 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowPostModal(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg"
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingJob}
-                  className="px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-md transition-all disabled:opacity-50"
                 >
-                  {submittingJob ? 'Processing & Ranking...' : 'Publish Job & Rank Candidates'}
+                  {submittingJob ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Publishing Requisition...
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-3.5 h-3.5" />
+                      Publish Requisition
+                    </>
+                  )}
                 </button>
               </div>
+
             </form>
           </div>
         </div>

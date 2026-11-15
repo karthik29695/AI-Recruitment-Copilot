@@ -226,6 +226,9 @@ export default function AuthPage() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
+              {/* Hidden dummy inputs to consume Chrome/browser password manager aggressive autofill */}
+              <input type="text" name="chrome_autofill_prevent_user" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="off" />
+              <input type="password" name="chrome_autofill_prevent_pass" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="off" />
               
               {/* Full Name (Sign Up only) */}
               {mode === 'signup' && (
@@ -261,6 +264,8 @@ export default function AuthPage() {
                   </div>
                   <input
                     type="email"
+                    name="auth_user_email"
+                    id="auth_user_email"
                     required
                     autoComplete="off"
                     value={email}
@@ -282,6 +287,8 @@ export default function AuthPage() {
                   </div>
                   <input
                     type="password"
+                    name="auth_user_password"
+                    id="auth_user_password"
                     required
                     minLength={6}
                     autoComplete="new-password"

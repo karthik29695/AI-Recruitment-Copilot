@@ -53,6 +53,12 @@ def run_recruiter_tests():
     assert len(new_qs) > 0
     print(f"    [OK] Regenerated {len(new_qs)} customized questions successfully")
 
+    # Cleanup test job
+    if created_job and created_job.job_id:
+        from app.models.job import Job
+        db.query(Job).filter(Job.job_id == created_job.job_id).delete()
+        db.commit()
+
     db.close()
     print("\n*** ALL RECRUITER BACKEND TESTS PASSED CLEANLY! ***\n")
 

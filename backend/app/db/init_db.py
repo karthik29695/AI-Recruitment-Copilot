@@ -191,12 +191,12 @@ def init_db(db: Session):
                 existing_c.skills = c_data["skills"]
     db.commit()
 
-    # 4. Generate Candidate Matches and Skill Gap Reports for all active jobs
-    jobs = db.query(Job).all()
-    candidates = db.query(Candidate).all()
+    # 4. Generate Candidate Matches and Skill Gap Reports ONLY for demo jobs and demo candidates
+    demo_jobs = db.query(Job).filter(Job.is_demo == True).all()
+    demo_candidates = db.query(Candidate).filter(Candidate.is_demo == True).all()
 
-    for job in jobs:
-        for cand in candidates:
+    for job in demo_jobs:
+        for cand in demo_candidates:
             match = db.query(CandidateMatch).filter(
                 CandidateMatch.job_id == job.job_id,
                 CandidateMatch.candidate_id == cand.candidate_id

@@ -14,3 +14,21 @@ export async function uploadCandidateResumeApi(file) {
     body: formData,
   });
 }
+
+export async function getCandidateJobsApi() {
+  return await apiRequest('/candidate/jobs', {
+    method: 'GET',
+  });
+}
+
+export async function applyToJobApi(jobId) {
+  return await apiRequest(`/candidate/jobs/${jobId}/apply`, {
+    method: 'POST',
+  });
+}
+
+export async function getCandidateApplicationsApi() {
+  return await apiRequest('/candidate/applications', {
+    method: 'GET',
+  });
+}

@@ -94,7 +94,7 @@ def post_job(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
-    """Upload or post a new Job Description and immediately run candidate ranking against candidate pool."""
+    """Upload or post a new Job Description. Candidate applications are submitted through the candidate portal."""
     user = current_user if isinstance(current_user, User) else None
     new_job = Job(
         job_title=job_in.job_title,
@@ -109,46 +109,6 @@ def post_job(
     db.commit()
     db.refresh(new_job)
 
-    # Candidate pool for matching
-    if is_demo_recruiter(user):
-        candidates = db.query(Candidate).filter(
-            (Candidate.is_demo == True) |
-            (Candidate.uploaded_by_user_id == (user.id if user else None))
-        ).all()
-    else:
-        # Non-demo recruiter: strictly non-demo candidates (either uploaded by this recruiter or registered)
-        candidates = db.query(Candidate).filter(
-            Candidate.is_demo == False,
-            (Candidate.uploaded_by_user_id == user.id) | (Candidate.user_id.isnot(None))
-        ).all()
-
-    for cand in candidates:
-        eval_res = evaluate_candidate_match(
-            candidate_skills_raw=cand.skills,
-            job_skills_raw=new_job.required_skills,
-            candidate_exp_raw=cand.experience,
-            job_exp_raw=new_job.experience_required
-        )
-        match = CandidateMatch(
-            candidate_id=cand.candidate_id,
-            job_id=new_job.job_id,
-            match_score=eval_res["match_score"],
-            hiring_score=eval_res["hiring_score"],
-            status="Screened"
-        )
-        db.add(match)
-
-        gap_report = SkillGapReport(
-            candidate_id=cand.candidate_id,
-            job_id=new_job.job_id,
-            matched_skills=json.dumps(eval_res["matched_skills"]),
-            missing_skills=json.dumps(eval_res["missing_skills"]),
-            recommended_courses=json.dumps(eval_res["recommended_courses"])
-        )
-        db.add(gap_report)
-
-    db.commit()
-
     return JobOut(
         job_id=new_job.job_id,
         job_title=new_job.job_title,
@@ -157,7 +117,7 @@ def post_job(
         experience_required=new_job.experience_required,
         job_description=new_job.job_description,
         created_at=new_job.created_at,
-        applicants_count=len(candidates)
+        applicants_count=0
     )
 
 @router.get("/jobs/{job_id}/candidates", response_model=List[CandidateMatchItem])
@@ -576,46 +536,6 @@ async def upload_jd(
     db.commit()
     db.refresh(new_job)
 
-    # 3. Evaluate candidate profiles against the new Job
-    if is_demo_recruiter(user):
-        candidates = db.query(Candidate).filter(
-            (Candidate.is_demo == True) |
-            (Candidate.uploaded_by_user_id == (user.id if user else None))
-        ).all()
-    else:
-        # Strictly non-demo candidates for non-demo recruiters
-        candidates = db.query(Candidate).filter(
-            Candidate.is_demo == False,
-            (Candidate.uploaded_by_user_id == user.id) | (Candidate.user_id.isnot(None))
-        ).all()
-
-    for cand in candidates:
-        eval_res = evaluate_candidate_match(
-            candidate_skills_raw=cand.skills,
-            job_skills_raw=new_job.required_skills,
-            candidate_exp_raw=cand.experience,
-            job_exp_raw=new_job.experience_required
-        )
-        match = CandidateMatch(
-            candidate_id=cand.candidate_id,
-            job_id=new_job.job_id,
-            match_score=eval_res["match_score"],
-            hiring_score=eval_res["hiring_score"],
-            status="Screened"
-        )
-        db.add(match)
-
-        gap_report = SkillGapReport(
-            candidate_id=cand.candidate_id,
-            job_id=new_job.job_id,
-            matched_skills=json.dumps(eval_res["matched_skills"]),
-            missing_skills=json.dumps(eval_res["missing_skills"]),
-            recommended_courses=json.dumps(eval_res["recommended_courses"])
-        )
-        db.add(gap_report)
-
-    db.commit()
-
     return JDUploadResponse(
         status="success",
         job_id=new_job.job_id,
@@ -625,5 +545,5 @@ async def upload_jd(
         education_required=parsed_jd["education_required"],
         required_skills=parsed_jd["required_skills"],
         job_description=new_job.job_description,
-        applicants_evaluated=len(candidates)
+        applicants_evaluated=0
     )

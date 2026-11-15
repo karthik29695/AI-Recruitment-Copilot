@@ -59,6 +59,12 @@ def run_tests():
     assert reg_res.access_token is not None
     print(f"    [OK] Successfully registered new recruiter: {reg_res.user.full_name} ({reg_res.user.email})")
 
+    # Cleanup test user
+    u = db.query(User).filter(User.email == test_email).first()
+    if u:
+        db.delete(u)
+        db.commit()
+
     db.close()
     print("\n*** ALL BACKEND AUTH TESTS PASSED CLEANLY! ***\n")
 
