@@ -57,12 +57,13 @@ export default function AuthPage() {
   const [selectedRole, setSelectedRole] = useState('recruiter');
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
   
-  // Form State
+  // Form State - strictly empty by default
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [organization, setOrganization] = useState('');
   const [phone, setPhone] = useState('');
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -74,6 +75,7 @@ export default function AuthPage() {
     setSelectedRole(roleId);
     setEmail('');
     setPassword('');
+    setPasswordFocused(false);
     setError(null);
     setSuccessMsg(null);
   };
@@ -83,6 +85,7 @@ export default function AuthPage() {
     setMode('login');
     setEmail(roleObj.demoEmail);
     setPassword('Password123!');
+    setPasswordFocused(true);
     setError(null);
   };
 
@@ -102,6 +105,9 @@ export default function AuthPage() {
       } else {
         if (!fullName.trim()) {
           throw new Error('Please enter your full name');
+        }
+        if (selectedRole !== 'candidate' && !organization.trim()) {
+          throw new Error('Please enter your company / organization name');
         }
         await register({
           email,
@@ -225,10 +231,20 @@ export default function AuthPage() {
             )}
 
             {/* Form */}
-            <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
-              {/* Hidden dummy inputs to consume Chrome/browser password manager aggressive autofill */}
-              <input type="text" name="chrome_autofill_prevent_user" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="off" />
-              <input type="password" name="chrome_autofill_prevent_pass" className="hidden" tabIndex={-1} aria-hidden="true" autoComplete="off" />
+            <form 
+              key={`${selectedRole}-${mode}`}
+              onSubmit={handleSubmit} 
+              autoComplete="off" 
+              className="space-y-4"
+            >
+              {/* Offscreen dummy inputs to catch and satisfy aggressive browser/Chrome autofill */}
+              <div 
+                aria-hidden="true" 
+                style={{ position: 'absolute', top: '-9999px', left: '-9999px', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }}
+              >
+                <input type="text" name="fake_username_remember" tabIndex={-1} autoComplete="off" />
+                <input type="password" name="fake_password_remember" tabIndex={-1} autoComplete="off" />
+              </div>
               
               {/* Full Name (Sign Up only) */}
               {mode === 'signup' && (
@@ -264,10 +280,12 @@ export default function AuthPage() {
                   </div>
                   <input
                     type="email"
-                    name="auth_user_email"
-                    id="auth_user_email"
+                    name={`auth_user_email_${selectedRole}`}
+                    id={`auth_user_email_${selectedRole}`}
                     required
                     autoComplete="off"
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readonly')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="user@domain.com"
@@ -286,12 +304,17 @@ export default function AuthPage() {
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
-                    type="password"
-                    name="auth_user_password"
-                    id="auth_user_password"
+                    type={passwordFocused || password ? "password" : "text"}
+                    name={`auth_user_password_${selectedRole}`}
+                    id={`auth_user_password_${selectedRole}`}
                     required
                     minLength={6}
                     autoComplete="new-password"
+                    readOnly
+                    onFocus={(e) => {
+                      e.target.removeAttribute('readonly');
+                      setPasswordFocused(true);
+                    }}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
@@ -306,6 +329,7 @@ export default function AuthPage() {
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                       {selectedRole === 'candidate' ? 'University / College / Previous Employer' : 'Company & Department'}
+                      {selectedRole !== 'candidate' && <span className="text-red-500"> *</span>}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -313,9 +337,10 @@ export default function AuthPage() {
                       </div>
                       <input
                         type="text"
+                        required={selectedRole !== 'candidate'}
                         value={organization}
                         onChange={(e) => setOrganization(e.target.value)}
-                        placeholder={selectedRole === 'candidate' ? 'IIT Madras / Infosys' : 'Infosys Ltd - Talent Acquisition'}
+                        placeholder={selectedRole === 'candidate' ? 'IIT Madras / Infosys' : 'e.g. CMR, Infosys, Google'}
                         className="block w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                       />
                     </div>

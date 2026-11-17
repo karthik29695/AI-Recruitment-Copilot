@@ -426,7 +426,6 @@ export default function RecruiterDashboard() {
                 </span>
               </div>
               <div className="text-2xl font-bold text-slate-900 mt-2">≥ 95%</div>
-              <span className="text-xs text-purple-600 font-medium mt-1 inline-block">Milestone 1 Met</span>
             </div>
 
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">

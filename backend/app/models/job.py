@@ -9,6 +9,7 @@ class Job(Base):
     job_id = Column(Integer, primary_key=True, index=True)
     job_title = Column(String, nullable=False)
     department = Column(String, nullable=True)
+    company = Column(String, nullable=True, index=True)
     required_skills = Column(Text, nullable=True)
     experience_required = Column(String, nullable=True)
     job_description = Column(Text, nullable=True)

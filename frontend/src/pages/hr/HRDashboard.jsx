@@ -403,9 +403,16 @@ export default function HRDashboard() {
                     <div>
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <div>
-                          <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-md border border-purple-200">
-                            {req.department || 'Engineering'}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {req.company && (
+                              <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                {req.company}
+                              </span>
+                            )}
+                            <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-md border border-purple-200">
+                              {req.department || 'Engineering'}
+                            </span>
+                          </div>
                           <h3 className="text-base font-bold text-slate-900 mt-1.5 leading-snug">
                             {req.job_title}
                           </h3>
@@ -530,9 +537,16 @@ export default function HRDashboard() {
 
                           <td className="py-3.5 px-4">
                             <div className="font-semibold text-slate-800">{cand.job_title}</div>
-                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 mt-0.5">
-                              {cand.department}
-                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {cand.company && (
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                  {cand.company}
+                                </span>
+                              )}
+                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                                {cand.department}
+                              </span>
+                            </div>
                           </td>
 
                           <td className="py-3.5 px-4 text-center">

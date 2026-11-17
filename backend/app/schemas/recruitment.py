@@ -5,6 +5,7 @@ from datetime import datetime
 class JobCreate(BaseModel):
     job_title: str
     department: Optional[str] = "Engineering"
+    company: Optional[str] = None
     required_skills: str  # Comma-separated or bullet list
     experience_required: Optional[str] = "3+ years"
     job_description: Optional[str] = ""
@@ -13,6 +14,7 @@ class JobOut(BaseModel):
     job_id: int
     job_title: str
     department: Optional[str] = None
+    company: Optional[str] = None
     required_skills: Optional[str] = None
     experience_required: Optional[str] = None
     job_description: Optional[str] = None
@@ -104,6 +106,7 @@ class CandidateJobItem(BaseModel):
     job_id: int
     job_title: str
     department: Optional[str] = None
+    company: Optional[str] = None
     required_skills: Optional[str] = None
     experience_required: Optional[str] = None
     job_description: Optional[str] = None
@@ -117,6 +120,7 @@ class CandidateApplicationOut(BaseModel):
     job_id: int
     job_title: str
     department: Optional[str] = None
+    company: Optional[str] = None
     experience_required: Optional[str] = None
     required_skills: Optional[str] = None
     job_description: Optional[str] = None
@@ -147,6 +151,7 @@ class HRCandidateItem(BaseModel):
     job_id: int
     job_title: str
     department: str
+    company: Optional[str] = None
     match_score: float
     hiring_score: float
     status: str

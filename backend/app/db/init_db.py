@@ -23,6 +23,9 @@ def init_db(db: Session):
             if "is_demo" not in job_cols:
                 conn.execute(text("ALTER TABLE jobs ADD COLUMN is_demo BOOLEAN DEFAULT 0"))
                 conn.commit()
+            if "company" not in job_cols:
+                conn.execute(text("ALTER TABLE jobs ADD COLUMN company VARCHAR"))
+                conn.commit()
 
             # Check is_demo, uploaded_by_user_id, projects, certifications on candidates
             res_c = conn.execute(text("PRAGMA table_info(candidates)")).fetchall()
@@ -93,6 +96,7 @@ def init_db(db: Session):
         job1 = Job(
             job_title="Senior Machine Learning Engineer",
             department="AI & Advanced Analytics",
+            company="Infosys",
             required_skills="Python, TensorFlow, PyTorch, Kubernetes, MLOps, AWS SageMaker, SQL",
             experience_required="5+ years",
             job_description="Lead the design and productionization of large-scale predictive and generative models, establish end-to-end MLOps pipelines, and collaborate with engineering teams for seamless deployment.",
@@ -102,6 +106,7 @@ def init_db(db: Session):
         job2 = Job(
             job_title="Full Stack Software Engineer",
             department="Cloud Applications",
+            company="Infosys",
             required_skills="React, TypeScript, Node.js, FastAPI, PostgreSQL, Docker, Git",
             experience_required="3+ years",
             job_description="Architect resilient microservices and responsive web user interfaces. Build robust RESTful APIs with FastAPI and craft delightful UI components with modern React and Tailwind CSS.",

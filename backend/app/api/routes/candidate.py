@@ -24,6 +24,7 @@ from app.services.candidate_profiler import parse_candidate_profile
 from app.services.matching_engine import evaluate_candidate_match, parse_skills
 from app.services.question_engine import generate_interview_questions_for_role
 from app.api.deps import get_current_user
+from app.core.company import get_job_company
 
 router = APIRouter(prefix="/candidate", tags=["Candidate Portal"])
 
@@ -217,6 +218,7 @@ def get_available_jobs_for_candidate(
             job_id=job.job_id,
             job_title=job.job_title,
             department=job.department,
+            company=get_job_company(job),
             required_skills=job.required_skills,
             experience_required=job.experience_required,
             job_description=job.job_description,
@@ -414,6 +416,7 @@ def get_candidate_applications(
             job_id=job.job_id,
             job_title=job.job_title,
             department=job.department,
+            company=get_job_company(job),
             experience_required=job.experience_required,
             required_skills=job.required_skills,
             job_description=job.job_description,

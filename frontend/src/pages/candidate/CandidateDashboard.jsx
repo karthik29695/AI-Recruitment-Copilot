@@ -651,9 +651,16 @@ export default function CandidateDashboard() {
                       {/* Top Header */}
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div>
-                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                            {job.department || 'Engineering'}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {job.company && (
+                              <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                {job.company}
+                              </span>
+                            )}
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                              {job.department || 'Engineering'}
+                            </span>
+                          </div>
                           <h3 className="text-base font-bold text-slate-900 mt-1.5 leading-snug">
                             {job.job_title}
                           </h3>
@@ -786,7 +793,12 @@ export default function CandidateDashboard() {
                     {/* Header Strip */}
                     <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/50">
                       <div>
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          {app.company && (
+                            <span className="text-[11px] font-bold text-slate-800 bg-white border border-slate-200 px-2 py-0.5 rounded shadow-xs">
+                              {app.company}
+                            </span>
+                          )}
                           <span className="text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded">
                             {app.department || 'Engineering'}
                           </span>

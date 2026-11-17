@@ -10,6 +10,7 @@ from app.models.candidate import Candidate
 from app.models.candidate_match import CandidateMatch
 from app.schemas.recruitment import JobOut, HRCandidateItem, HRStatusUpdate
 from app.api.deps import get_current_user
+from app.core.company import get_user_company, get_job_company, companies_match
 
 router = APIRouter(prefix="/hr", tags=["HR Operations"])
 
@@ -32,7 +33,7 @@ def get_hr_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retrieve HR leadership analytics; delivers demo metrics for hr@infosys.com and live system metrics for other users."""
+    """Retrieve HR leadership analytics strictly scoped to the HR user's organization."""
     is_demo = current_user.email.lower() == DEMO_HR_EMAIL.lower()
 
     if is_demo:
@@ -46,30 +47,48 @@ def get_hr_analytics(
             accuracy_sub="Exceeds 95% target",
             ats_status="Online",
             ats_sub="Connected to candidate pool",
-            organization=current_user.company_or_institution or "Corporate Human Resources"
+            organization=current_user.company_or_institution or "Infosys"
         )
 
-    # Real data for newly created or non-demo HR accounts
-    non_demo_jobs_count = db.query(Job).filter(Job.is_demo == False).count()
-    non_demo_recruiters_count = db.query(User).filter(
+    # Scoped strictly to the logged-in HR's company
+    hr_comp = get_user_company(current_user)
+    
+    # 1. Non-demo jobs matching this HR's company
+    all_non_demo_jobs = db.query(Job).filter(Job.is_demo == False).all()
+    matching_jobs = [j for j in all_non_demo_jobs if companies_match(get_job_company(j), hr_comp)]
+    matching_jobs_count = len(matching_jobs)
+    job_ids = [j.job_id for j in matching_jobs]
+
+    # 2. Recruiters belonging to this HR's company
+    all_recruiters = db.query(User).filter(
         User.role == "recruiter",
         User.email != "recruiter@infosys.com"
-    ).count()
-    non_demo_candidates_count = db.query(Candidate).filter(Candidate.is_demo == False).count()
+    ).all()
+    matching_recruiters = [r for r in all_recruiters if companies_match(get_user_company(r), hr_comp)]
+    matching_recruiters_count = len(matching_recruiters)
 
-    accuracy_val = "97%" if non_demo_candidates_count > 0 else "Ready"
+    # 3. Candidates who applied to this company's jobs
+    if job_ids:
+        matching_cand_count = db.query(CandidateMatch).filter(
+            CandidateMatch.job_id.in_(job_ids)
+        ).distinct(CandidateMatch.candidate_id).count()
+    else:
+        matching_cand_count = 0
+
+    accuracy_val = "97%" if matching_cand_count > 0 else "Ready"
+    display_org = hr_comp or current_user.company_or_institution or "Your Organization"
 
     return HRAnalyticsOut(
         is_demo=False,
-        total_requisitions=non_demo_jobs_count,
-        requisitions_sub=f"{non_demo_jobs_count} requisitions posted",
-        active_recruiters=non_demo_recruiters_count,
-        recruiters_sub=f"{non_demo_recruiters_count} active recruiter account(s)",
+        total_requisitions=matching_jobs_count,
+        requisitions_sub=f"{matching_jobs_count} active requisition(s)",
+        active_recruiters=matching_recruiters_count,
+        recruiters_sub=f"{matching_recruiters_count} recruiter(s) in {display_org}",
         screening_accuracy=accuracy_val,
-        accuracy_sub=f"{non_demo_candidates_count} candidate(s) ingested" if non_demo_candidates_count > 0 else "Upload resumes to evaluate",
+        accuracy_sub=f"{matching_cand_count} applicant(s) evaluated" if matching_cand_count > 0 else "Candidates will appear once applied",
         ats_status="Online",
         ats_sub="Real-time candidate sync",
-        organization=current_user.company_or_institution or "Corporate Human Resources"
+        organization=display_org
     )
 
 @router.get("/requisitions", response_model=List[JobOut])
@@ -77,12 +96,16 @@ def get_hr_requisitions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retrieve all organizational job requisitions for HR review."""
+    """Retrieve organizational job requisitions for HR review, scoped to HR's company."""
     is_demo = current_user.email.lower() == DEMO_HR_EMAIL.lower()
+    hr_comp = get_user_company(current_user)
+
     if is_demo:
-        jobs = db.query(Job).order_by(Job.created_at.desc()).all()
+        all_jobs = db.query(Job).order_by(Job.created_at.desc()).all()
+        jobs = [j for j in all_jobs if j.is_demo or companies_match(get_job_company(j), "Infosys")]
     else:
-        jobs = db.query(Job).filter(Job.is_demo == False).order_by(Job.created_at.desc()).all()
+        all_jobs = db.query(Job).filter(Job.is_demo == False).order_by(Job.created_at.desc()).all()
+        jobs = [j for j in all_jobs if companies_match(get_job_company(j), hr_comp)]
 
     result = []
     for j in jobs:
@@ -91,6 +114,7 @@ def get_hr_requisitions(
             job_id=j.job_id,
             job_title=j.job_title,
             department=j.department,
+            company=get_job_company(j),
             required_skills=j.required_skills,
             experience_required=j.experience_required,
             job_description=j.job_description,
@@ -104,18 +128,21 @@ def get_hr_candidates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retrieve all evaluated candidate matches across all jobs for HR decision making."""
+    """Retrieve evaluated candidate matches across jobs belonging to the HR's organization."""
     is_demo = current_user.email.lower() == DEMO_HR_EMAIL.lower()
+    hr_comp = get_user_company(current_user)
     
     query = (
         db.query(CandidateMatch, Candidate, Job)
         .join(Candidate, CandidateMatch.candidate_id == Candidate.candidate_id)
         .join(Job, CandidateMatch.job_id == Job.job_id)
     )
-    if not is_demo:
-        query = query.filter(Candidate.is_demo == False, Job.is_demo == False)
-
-    matches = query.order_by(CandidateMatch.created_at.desc()).all()
+    if is_demo:
+        all_matches = query.order_by(CandidateMatch.created_at.desc()).all()
+        matches = [(m, c, j) for (m, c, j) in all_matches if j.is_demo or companies_match(get_job_company(j), "Infosys")]
+    else:
+        all_matches = query.filter(Job.is_demo == False).order_by(CandidateMatch.created_at.desc()).all()
+        matches = [(m, c, j) for (m, c, j) in all_matches if companies_match(get_job_company(j), hr_comp)]
 
     result = []
     for match, cand, job in matches:
@@ -127,6 +154,7 @@ def get_hr_candidates(
             job_id=job.job_id,
             job_title=job.job_title,
             department=job.department or "Engineering",
+            company=get_job_company(job),
             match_score=match.match_score,
             hiring_score=match.hiring_score,
             status=match.status,
@@ -143,11 +171,23 @@ def update_candidate_hiring_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """HR decision to approve, shortlist, extend offer, or reject a candidate."""
+    """HR decision to approve, shortlist, extend offer, or reject a candidate within their company."""
     match = db.query(CandidateMatch).filter(CandidateMatch.match_id == match_id).first()
     if not match:
         raise HTTPException(status_code=404, detail="Candidate application not found")
     
+    job = db.query(Job).filter(Job.job_id == match.job_id).first()
+    is_demo = current_user.email.lower() == DEMO_HR_EMAIL.lower()
+    hr_comp = get_user_company(current_user)
+
+    if not is_demo and job:
+        job_comp = get_job_company(job)
+        if not companies_match(job_comp, hr_comp):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You can only update applications for jobs belonging to your organization."
+            )
+
     match.status = status_in.status
     db.commit()
     db.refresh(match)

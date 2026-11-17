@@ -27,6 +27,7 @@ from app.services.resume_parser import extract_text_from_file
 from app.services.candidate_profiler import parse_candidate_profile
 from app.services.jd_analyzer import parse_job_description
 from app.api.deps import get_current_user, get_current_user_optional
+from app.core.company import get_job_company, get_user_company
 
 router = APIRouter(prefix="/recruiter", tags=["Recruiter Operations"])
 
@@ -79,6 +80,7 @@ def get_jobs(
             "job_id": job.job_id,
             "job_title": job.job_title,
             "department": job.department,
+            "company": get_job_company(job),
             "required_skills": job.required_skills,
             "experience_required": job.experience_required,
             "job_description": job.job_description,
@@ -96,9 +98,11 @@ def post_job(
 ):
     """Upload or post a new Job Description. Candidate applications are submitted through the candidate portal."""
     user = current_user if isinstance(current_user, User) else None
+    company_val = (job_in.company or "").strip() or get_user_company(user) or "Infosys"
     new_job = Job(
         job_title=job_in.job_title,
         department=job_in.department,
+        company=company_val,
         required_skills=job_in.required_skills,
         experience_required=job_in.experience_required,
         job_description=job_in.job_description,
@@ -113,6 +117,7 @@ def post_job(
         job_id=new_job.job_id,
         job_title=new_job.job_title,
         department=new_job.department,
+        company=get_job_company(new_job),
         required_skills=new_job.required_skills,
         experience_required=new_job.experience_required,
         job_description=new_job.job_description,
@@ -523,9 +528,11 @@ async def upload_jd(
     parsed_jd = parse_job_description(jd_content)
 
     # 2. Create Job in database
+    company_val = get_user_company(user) or "Infosys"
     new_job = Job(
         job_title=parsed_jd["job_title"],
         department=parsed_jd["department"],
+        company=company_val,
         required_skills=parsed_jd["required_skills_str"],
         experience_required=parsed_jd["experience_required"],
         job_description=parsed_jd["job_description"],
